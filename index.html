@@ -160,7 +160,7 @@ h3{margin:18px 0 4px}footer{font-size:12px;margin:24px 0;text-align:center;color
 <span class="note" id="directurl" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
 <button class="ghost" onclick="copyDirect()">📋 ก็อปลิงก์</button>
 </div>
-<footer>NX • Vercel + หลังบ้านตัวเอง • ดูบนมือถือ / Smart TV ได้ • ข้อมูลจากเว็บฟรี</footer>
+<footer>eco_nx • Vercel + Cloudflare Worker • ดูบนมือถือ / Smart TV ได้ • ข้อมูลจากเว็บฟรี</footer>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
 <script>
 const PROXIES=[{p:'https://cors.eu.org/',e:0},{p:'https://api.allorigins.win/raw?url=',e:1},{p:'https://api.cors.lol/?url=',e:0}];
@@ -201,7 +201,8 @@ function buildQSel(h,levels,cur){
     if(i===cur)o.selected=true;sel.appendChild(o);});
   sel.onchange=()=>{h.currentLevel=+sel.value;};
 }
-function proxied(src,ref){return '/api/hls?url='+encodeURIComponent(src)+(ref?('&ref='+encodeURIComponent(ref)):'');}
+const HLS_PROXY='https://nx-hls.hls-worker.workers.dev';
+function proxied(src,ref){return HLS_PROXY+'?url='+encodeURIComponent(src)+(ref?('&ref='+encodeURIComponent(ref)):'');}
 function play(src,ref){
   document.getElementById('yt').style.display='none';const v=document.getElementById('v');v.style.display='block';
   if(window._hls){try{window._hls.destroy()}catch(e){}window._hls=null}
