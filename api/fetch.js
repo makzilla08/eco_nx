@@ -46,7 +46,7 @@ export default async function handler(req, res) {
     const baseHeaders = { ...fwdHeaders, ...(referer ? { Referer: referer } : {}) };
     if (isPost) {
       const ctl = new AbortController();
-      const to = setTimeout(() => ctl.abort(), 25000);
+      const to = setTimeout(() => ctl.abort(), 8000);
       try {
         const r = await fetch(target, { method: 'POST', body: fwdBody, signal: ctl.signal, redirect: 'follow', headers: baseHeaders });
         clearTimeout(to);
@@ -63,7 +63,7 @@ export default async function handler(req, res) {
       'https://corsproxy.io/?url=' + encodeURIComponent(target)];
     const race = tries.map((u, i) => (async () => {
       const ctl = new AbortController();
-      const to = setTimeout(() => ctl.abort(), 12000);
+      const to = setTimeout(() => ctl.abort(), 6000);
       try {
         const rr = await fetch(u, { signal: ctl.signal, redirect: 'follow',
           headers: i === 0 ? baseHeaders : { 'User-Agent': UA } });

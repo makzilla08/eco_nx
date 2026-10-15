@@ -33,7 +33,7 @@ async function fetchHtml(url) {
     'https://corsproxy.io/?url=' + encodeURIComponent(url)];
   const race = tries.map(u => (async () => {
     const ctl = new AbortController();
-    const to = setTimeout(() => ctl.abort(), 12000);
+    const to = setTimeout(() => ctl.abort(), 6000);
     try {
       const r = await fetch(u, { signal: ctl.signal, redirect: 'follow', headers: { 'User-Agent': UA, 'Accept': 'text/html,*/*', 'Accept-Language': 'th-TH,th;q=0.9,en;q=0.8' } });
       clearTimeout(to);
@@ -146,7 +146,7 @@ function parseFairy(html, base) {
 async function searchO37(q) {
   try {
     const ctl = new AbortController();
-    const to = setTimeout(() => ctl.abort(), 20000);
+    const to = setTimeout(() => ctl.abort(), 10000);
     const r = await fetch('https://037hddd.com/api/search?q=' + encodeURIComponent(q) + '&limit=12',
       { signal: ctl.signal, headers: { 'User-Agent': UA, 'Accept': 'application/json' } });
     clearTimeout(to);
