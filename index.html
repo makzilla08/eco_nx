@@ -120,6 +120,7 @@ h3{margin:18px 0 4px}footer{font-size:12px;margin:24px 0;text-align:center;color
 <div class="frow"><span class="flabel">ตัวอักษร:</span><span id="sdletters"></span></div>
 </div>
 <div class="bgrid" id="seriesbrowse"></div>
+<div id="series-episodes" style="display:none"></div>
 </div>
 <div id="results" class="grid"></div>
 <h3 id="webhead" style="display:none">🌐 จากทั่วเน็ต</h3>
@@ -604,10 +605,47 @@ async function seriesBrowse(){
     (j.items||[]).forEach(m=>{
       const d=document.createElement('div');d.className='bcard';
       d.innerHTML='<img loading="lazy" src="'+m.cover+'"><div class="t">'+m.title+'</div><div class="s">'+(m.badge||m.src||'')+'</div>';
-      d.onclick=()=>expandWeb(m.url,m.title);g.appendChild(d);
+      d.onclick=()=>expandSeries(m.url,m.title);g.appendChild(d);
     });
     if(!g.children.length)g.innerHTML='<p class="note">ไม่เจอ ลองเปลี่ยนตัวกรอง</p>';
   }catch(e){g.innerHTML='<p class="note">โหลดไม่ได้: '+e.message.slice(0,80)+'</p>';}
+}
+async function expandSeries(url,title){
+  const panel=document.getElementById('series-episodes');
+  panel.style.display='block';
+  panel.innerHTML='<h3>'+title+'</h3><p class="note">⏳ กำลังโหลดตอน...</p>';
+  panel.scrollIntoView();
+  try{
+    const html=await pGet(url);
+    const eps={};
+    [...html.matchAll(/href="([^"]*(?:episode|ep|ตอน)[^"]*)"/gi)].forEach(m=>{
+      const n=m[1].match(/(\d{1,3})/);
+      if(n&&+n[1]<2000&&!eps[+n[1]])eps[+n[1]]=m[1];
+    });
+    [...html.matchAll(/href="(https:\/\/(?:hit-anime|anime-hit)\.com\/video\/[^"]+)"/g)].forEach(m=>{
+      const n=m[1].match(/-ep-(\d+)/);
+      if(n&&!eps[+n[1]])eps[+n[1]]=m[1];
+    });
+    const list=Object.keys(eps).map(Number).sort((a,b)=>a-b);
+    if(list.length){
+      panel.innerHTML='<h3>'+title+' — '+list.length+' ตอน</h3><div class="eps"></div>';
+      const epsBox=panel.querySelector('.eps');
+      list.forEach(n=>{
+        const b=document.createElement('button');
+        b.textContent='EP.'+n;
+        b.onclick=()=>{
+          document.getElementById('u').value=eps[n];
+          setNow(title+' — EP.'+n,list.indexOf(n));
+          resolve();
+        };
+        epsBox.appendChild(b);
+      });
+    }else{
+      panel.innerHTML='<h3>'+title+'</h3><p class="note">ไม่พบลิสต์ตอน — <button onclick="document.getElementById(\'u\').value=\''+url+'\';resolve()">ดูเลย</button></p>';
+    }
+  }catch(e){
+    panel.innerHTML='<h3>'+title+'</h3><p class="note">โหลดไม่ได้ — <button onclick="document.getElementById(\'u\').value=\''+url+'\';resolve()">ดูเลย</button></p>';
+  }
 }
 async function resolveHitVideo(pageUrl){
   const html=await pGet(pageUrl);
