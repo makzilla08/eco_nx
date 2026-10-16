@@ -383,7 +383,7 @@ async function resolveUrl(pageUrl){
   }
   const gd=drivePreview(pageUrl);if(gd)return{embed:gd};
   if(/037-?h(dd|d)?\./.test(pageUrl)){try{return await resolve037(pageUrl);}catch(e){if(e.message!=='no-037')throw e;}}
-  const html=await pGet(pageUrl),doc=new DOMParser().parseFromString(html,'text/html');
+  const html=await pGet(pageUrl,refFor(pageUrl)),doc=new DOMParser().parseFromString(html,'text/html');
   const frames=[...doc.querySelectorAll('iframe')].map(f=>f.getAttribute('src')||f.getAttribute('data-src')||'');
   const rawHtml=html.match(/<iframe[^>]*src\s*=\s*"?([^"'\s>]+)/g)||[];
   for(const m of rawHtml){const u=m.match(/src\s*=\s*"?([^"'\s>]+)/);if(u&&!frames.includes(u[1]))frames.push(u[1]);}
@@ -418,10 +418,12 @@ async function resolve(){
       document.getElementById('directurl').textContent=j.src.slice(0,70)+'…';}
     if(!CUR.label||CUR.idx<0&&!EP.length)setNow(u(),-1);
   }catch(e){alert(e.message)}
-  finally{if(btn){btn.disabled=false;btn.textContent='▶ ดูเลย';}}
+  finally{if(btn){btn.disabled=false;btn.textContent='▶ ดูเลย';}FORCE_REF='';}
 }
 let LAST_DIRECT='';
 function copyDirect(){navigator.clipboard.writeText(LAST_DIRECT).then(()=>alert('ก็อปลิงก์แล้ว'))}
+let FORCE_REF='';
+function refFor(url){return FORCE_REF||url;}
 let EP=[],ASC=true,CUR={label:'',idx:-1},EPTITLE='';
 function setNow(l,i){CUR={label:l,idx:i};document.getElementById('nowbar').style.display='flex';
   document.getElementById('nowtxt').textContent='▶ กำลังดู: '+l;
@@ -676,6 +678,7 @@ async function expandSeries(url,title){
       const box=panel.querySelector('.eps');
       eps.forEach(e=>{
         epBtn(box,'EP.'+e.ep,()=>{
+          FORCE_REF=url;
           document.getElementById('u').value=e.url;setNow(title+' — EP.'+e.ep,-1);resolve();
         });
       });
