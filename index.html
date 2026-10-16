@@ -244,7 +244,7 @@ async function scanDrive(html){
   }
   for(const u of found){
     const gd=u.match(/drive\.google\.com\/file\/d\/([\w-]+)/);
-    if(gd)return{src:'https://drive.google.com/uc?export=download&id='+gd[1],ref:'https://drive.google.com'};
+    if(gd)return{embed:'https://drive.google.com/file/d/'+gd[1]+'/preview'};
     if(/\.(mp4|m3u8)(\?|$)/.test(u))return{src:u};
   }
   return null;
@@ -368,7 +368,7 @@ function isSeriesUrl(url){
 async function resolveUrl(pageUrl){
   if(/\.(m3u8|mp4)(\?|$)/.test(pageUrl))return{src:pageUrl};
   const gdMatch=pageUrl.match(/drive\.google\.com\/file\/d\/([\w-]+)/);
-  if(gdMatch)return{src:'https://drive.google.com/uc?export=download&id='+gdMatch[1],ref:'https://drive.google.com'};
+  if(gdMatch)return{embed:'https://drive.google.com/file/d/'+gdMatch[1]+'/preview'};
   if(/youtube|youtu\.be/.test(pageUrl)){const id=ytId(pageUrl);if(id)return{yt:id};}
   if(/hit-anime\.com\/video\//.test(pageUrl)){try{return await resolveHitVideo(pageUrl);}catch(e){if(e.message!=='no-hit')throw e;}}
   if(/037hddd\.com\/watch\//.test(pageUrl)){try{return await resolveO37Watch(pageUrl);}catch(e){if(e.message!=='no-o37')throw e;}}

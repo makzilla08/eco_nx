@@ -212,7 +212,13 @@ export default async function handler(req, res) {
     const fn = allow[host] && (parser ? { hit: parseHit, sd: parseSeriesdet, o37: parseO37, m285: parseM285 }[parser] : allow[host]);
     if (!fn) return res.status(403).json({ error: 'host not allowed' });
     try {
-      const html = await fetchHtml(custom);
+      const pg = Math.max(1, +page || 1);
+      let target = custom;
+      if (pg > 1) {
+        if (/[?&]s=/.test(target)) target += (target.includes('paged=') ? '' : (target.includes('?') ? '&' : '?') + 'paged=' + pg);
+        else target = target.replace(/\/$/, '') + '/page/' + pg + '/';
+      }
+      const html = await fetchHtml(target);
       return res.status(200).json({ items: fn(html, u.origin + '/'), totalPages: maxPage(html) });
     } catch (e) {
       return res.status(502).json({ error: String(e.message || e).slice(0, 120) });
