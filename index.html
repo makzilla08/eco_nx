@@ -249,6 +249,14 @@ async function scanDrive(html){
   }
   return null;
 }
+function findM3U8(html){
+  const m=html.match(/"(\/sources\/[^"]+?master\.m3u8\?[^"]+)"/)
+    ||html.match(/"(\/catalog\/playlists\/[^"]+?master\.m3u8\?[^"]+)"/)
+    ||html.match(/"(https?:\/\/[^"]+?master\.m3u8\?[^"]+)"/)
+    ||html.match(/"([^"]*\.m3u8[^"]*)"/)
+    ||html.match(/(https?:\/\/[^"'\s]+\.m3u8[^"'\s]*)/);
+  return m?m[1]:null;
+}
 async function resolve037(pageUrl){
   const html=await pGet(pageUrl);
   const tickets=[...html.matchAll(/((?:https?:\/\/[^"'\s]+)?\?streamhls_ticket=1[^"'\s]*?target=([A-Za-z0-9+/=]+)[^"'\s]*)/g)];
@@ -273,8 +281,8 @@ async function resolve037(pageUrl){
             JSON.stringify({source_id:sc.id,gate_token:gate}),{'Content-Type':'application/json'});
           if(!pb?.embed_url)continue;
           const ehtml=await pGet(apiHost+pb.embed_url);
-          const mu=ehtml.match(/"(\/sources\/[^"]+?master\.m3u8\?[^"]+)"/);
-          if(mu)return{src:apiHost+mu[1],label:sess.title+' '+sc.label};
+          const mu=findM3U8(ehtml);
+          if(mu)return{src:mu.startsWith('http')?mu:apiHost+mu,label:sess.title+' '+sc.label};
         }catch(e){}
       }
     }catch(e){}
@@ -303,8 +311,8 @@ async function resolveTicket(turl){
         JSON.stringify({source_id:sc.id,gate_token:gate}),{'Content-Type':'application/json'});
       if(!pb?.embed_url)continue;
       const ehtml=await pGet(apiHost+pb.embed_url);
-      const mu=ehtml.match(/"(\/sources\/[^"]+?master\.m3u8\?[^"]+)"/);
-      if(mu)return{src:apiHost+mu[1],label:(sess.title||'')+' '+sc.label};
+      const mu=findM3U8(ehtml);
+      if(mu)return{src:mu.startsWith('http')?mu:apiHost+mu,label:(sess.title||'')+' '+sc.label};
     }catch(e){}
   }
   throw new Error('no-ticket');
@@ -330,9 +338,8 @@ async function playableFromO37Links(links){
           if(!pb?.embed_url)continue;
           const surl=pb.embed_url.startsWith('http')?pb.embed_url:origin+pb.embed_url;
           const shtml=await pGet(surl);
-          const mu=shtml.match(/"(\/sources\/[^"]+?master\.m3u8\?[^"]+)"/)
-            ||shtml.match(/(https?:\/\/[^"'\\\s]+\.m3u8[^"'\\\s]*)/);
-          if(mu)return{src:mu[1].startsWith('http')?mu[1]:new URL(surl).origin+mu[1],label:(sess.title||'')+' '+(sc.label||'')};
+          const mu=findM3U8(shtml);
+          if(mu)return{src:mu.startsWith('http')?mu:new URL(surl).origin+mu,label:(sess.title||'')+' '+(sc.label||'')};
         }catch(e){}
       }
     }catch(e){}
