@@ -120,6 +120,15 @@ function parseO37(html, base) {
   return out;
 }
 
+function maxPage(html) {
+  let mx = 1;
+  for (const m of html.matchAll(/\/page\/(\d+)\/?["']/g)) {
+    const n = +m[1];
+    if (n > mx && n < 100000) mx = n;
+  }
+  return mx;
+}
+
 function pickParser(source) {
   if (source.startsWith('hit-')) return parseHit;
   if (source.startsWith('fairy-')) return parseFairy;
@@ -204,7 +213,7 @@ export default async function handler(req, res) {
     if (!fn) return res.status(403).json({ error: 'host not allowed' });
     try {
       const html = await fetchHtml(custom);
-      return res.status(200).json({ items: fn(html, u.origin + '/') });
+      return res.status(200).json({ items: fn(html, u.origin + '/'), totalPages: maxPage(html) });
     } catch (e) {
       return res.status(502).json({ error: String(e.message || e).slice(0, 120) });
     }
@@ -216,7 +225,7 @@ export default async function handler(req, res) {
   try {
     const html = await fetchHtml(url);
     const items = pickParser(source)(html, base);
-    return res.status(200).json({ items });
+    return res.status(200).json({ items, totalPages: maxPage(html) });
   } catch (e) {
     return res.status(502).json({ error: String(e.message || e).slice(0, 120) });
   }

@@ -51,6 +51,7 @@ export default async function handler(req, res) {
     if (needLetter) {
       const L = letter.toLowerCase();
       items = items.filter(x => stripTitle(x.title).toLowerCase().startsWith(L));
+      return res.status(200).json({ items, total: items.length });
     }
     return res.status(200).json({ items, total: j.total || items.length });
   } catch (e) {
