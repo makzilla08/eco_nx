@@ -282,7 +282,7 @@ async function resolve037(pageUrl){
           if(!pb?.embed_url)continue;
           const ehtml=await pGet(apiHost+pb.embed_url);
           const mu=findM3U8(ehtml);
-          if(mu)return{src:mu.startsWith('http')?mu:apiHost+mu,label:sess.title+' '+sc.label};
+          if(mu)return{src:mu.startsWith('http')?mu:apiHost+mu,ref:'https://037hd.com/',label:sess.title+' '+sc.label};
         }catch(e){}
       }
     }catch(e){}
@@ -312,7 +312,7 @@ async function resolveTicket(turl){
       if(!pb?.embed_url)continue;
       const ehtml=await pGet(apiHost+pb.embed_url);
       const mu=findM3U8(ehtml);
-      if(mu)return{src:mu.startsWith('http')?mu:apiHost+mu,label:(sess.title||'')+' '+sc.label};
+      if(mu)return{src:mu.startsWith('http')?mu:apiHost+mu,ref:'https://037hd.com/',label:(sess.title||'')+' '+sc.label};
     }catch(e){}
   }
   throw new Error('no-ticket');
@@ -339,7 +339,7 @@ async function playableFromO37Links(links){
           const surl=pb.embed_url.startsWith('http')?pb.embed_url:origin+pb.embed_url;
           const shtml=await pGet(surl);
           const mu=findM3U8(shtml);
-          if(mu)return{src:mu.startsWith('http')?mu:new URL(surl).origin+mu,label:(sess.title||'')+' '+(sc.label||'')};
+          if(mu)return{src:mu.startsWith('http')?mu:new URL(surl).origin+mu,ref:'https://037hd.com/',label:(sess.title||'')+' '+(sc.label||'')};
         }catch(e){}
       }
     }catch(e){}
@@ -355,7 +355,7 @@ async function resolveO37Watch(pageUrl){
 async function resolveO37Episode(seriesId,epDbId,epNum,title){
   const links=JSON.parse(await pGet('https://037hddd.com/api/watch-links/series/'+seriesId+'/ep/'+epDbId));
   const j=await playableFromO37Links(links);
-  let ref='';try{ref=new URL(j.src).origin}catch(e){}
+  const ref=j.ref||'';
   play(j.src,ref);LAST_DIRECT=j.src;
   document.getElementById('directbox').style.display='flex';
   document.getElementById('directurl').textContent=j.src.slice(0,70)+'…';
