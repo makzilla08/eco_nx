@@ -734,11 +734,11 @@ async function expandSeries(url,title){
 async function resolveHitVideo(pageUrl){
   const html=await pGet(pageUrl);
   const frames=[...html.matchAll(/<iframe[^>]*src\s*=\s*"?([^"'\s>]+)/g)].map(m=>m[1]);
-  let firstIndy=null;
+  let indy=null;
   for(const f0 of frames){
     const f=f0.startsWith('//')?'https:'+f0:f0;
     if(!/team-indy/.test(f))continue;
-    if(!firstIndy)firstIndy=f;
+    if(!indy)indy=f;
     try{
       const eh=await pGet(f,pageUrl);
       if(/Attention Required|challenge-platform/.test(eh))continue;
@@ -746,7 +746,11 @@ async function resolveHitVideo(pageUrl){
       if(vids.length)return{src:vids[0],ref:new URL(f).origin};
     }catch(e){}
   }
-  if(firstIndy)return{embed:firstIndy};
+  if(indy){
+    const id=indy.match(/team-indy\.net\/embed\/([^\/?#]+)/);
+    if(id)return{src:'https://hls.animeindy.com:8443/vid/'+id[1]+'/video.mp4/playlist.m3u8',ref:'https://hit.team-indy.net/'};
+    return{embed:indy};
+  }
   throw new Error('no-hit');
 }
 function switchPanel(p,btn){
