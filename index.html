@@ -60,7 +60,7 @@ h3{margin:18px 0 4px}footer{font-size:12px;margin:24px 0;text-align:center;color
 <button onclick="platform('Prime Video')">📦 Prime</button>
 <button onclick="platform('HBO')">🎬 HBO</button>
 </div>
-<div class="srcs"><span class="note">แหล่งเบื้องหลัง:</span><span class="src">anime-hit</span><span class="src">037HD</span><span class="src">AnimePahe</span><span class="src">YouTube</span><span class="src">+ทั่วเน็ต</span></div>
+<div class="srcs"><span class="note">แหล่งเบื้องหลัง:</span><span class="src" style="cursor:pointer" onclick="jumpSource('anime-hit')">anime-hit</span><span class="src" style="cursor:pointer" onclick="jumpSource('037HD')">037HD</span><span class="src" style="cursor:pointer" onclick="jumpSource('AnimePahe')">AnimePahe</span><span class="src" style="cursor:pointer" onclick="jumpSource('YouTube')">YouTube</span><span class="src" style="cursor:pointer" onclick="jumpSource('+ทั่วเน็ต')">+ทั่วเน็ต</span></div>
 </div>
 <h3>📚 เลือกดูจากฐานข้อมูล</h3>
 <div class="tabs" id="bigtabs">
@@ -159,6 +159,16 @@ h3{margin:18px 0 4px}footer{font-size:12px;margin:24px 0;text-align:center;color
 const PROXIES=[{p:'https://api.allorigins.win/raw?url=',e:1}];
 function customProxy(){const u=(localStorage.getItem('nx_proxy')||'').trim();return u?[{p:u,e:0}]:[];}
 function chain(){return customProxy().concat(PROXIES);}
+const JCACHE=new Map();
+async function getJSON(url){
+  const c=JCACHE.get(url);
+  if(c&&Date.now()-c.t<60000)return c.v;
+  const r=await fetch(url);
+  if(!r.ok)throw new Error('server '+r.status);
+  const v=await r.json();
+  JCACHE.set(url,{t:Date.now(),v});
+  return v;
+}
 const u=()=>document.getElementById('u').value.trim();
 async function viaServer(url,opt,ref){
   const r=await fetch('/api/fetch?url='+encodeURIComponent(url)+(ref?('&ref='+encodeURIComponent(ref)):''),{signal:(opt||{}).signal});
@@ -433,10 +443,22 @@ let EP=[],ASC=true,CUR={label:'',idx:-1},EPTITLE='';
 function setNow(l,i){CUR={label:l,idx:i};document.getElementById('nowbar').style.display='flex';
   document.getElementById('nowtxt').textContent='▶ กำลังดู: '+l;
   const h=EP.length>0&&i>=0;document.getElementById('prevbtn').disabled=!h||i<=0;document.getElementById('nextbtn').disabled=!h||i>=EP.length-1;}
-function playEp(e,i){[...document.getElementById('eps').children].forEach(b=>b.classList.toggle('cur',b.textContent==='EP.'+e.ep));
+function highlightEp(box,n){if(!box)return;[...box.children].forEach(b=>b.classList.toggle('cur',b.textContent==='EP.'+n));}
+function playEp(e,i){highlightEp(document.getElementById('eps'),e.ep);
   document.getElementById('u').value=e.url;setNow((EPTITLE?EPTITLE+' — ':'')+'EP.'+e.ep,i);resolve();}
-function stepEp(d){if(CUR.idx<0||!EP.length)return;const n=CUR.idx+d;if(n<0||n>=EP.length)return;playEp(EP[n],n);}
-function toggleOrder(){ASC=!ASC;renderEps();}
+function playEpIndex(i){
+  if(i<0||i>=EP.length)return;const e=EP[i];
+  [document.querySelector('#series-episodes .eps'),document.getElementById('eps'),document.getElementById('wdeps')].forEach(b=>highlightEp(b,e.ep));
+  CUR={label:(EPTITLE?EPTITLE+' — ':'')+'EP.'+e.ep,idx:i};
+  document.getElementById('nowbar').style.display='flex';
+  document.getElementById('nowtxt').textContent='▶ กำลังดู: '+CUR.label;
+  document.getElementById('prevbtn').disabled=i<=0;
+  document.getElementById('nextbtn').disabled=i>=EP.length-1;
+  if(e.play){e.play();return;}
+  document.getElementById('u').value=e.url;if(e.ref)FORCE_REF=e.ref;resolve();
+}
+function stepEp(d){if(CUR.idx<0||!EP.length)return;playEpIndex(CUR.idx+d);}
+function toggleOrder(){ASC=!ASC;renderEps();renderWEps();}
 function fmtT(s){s=+s;return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
 function skipIntro(){const v=document.getElementById('v');v.currentTime=Math.min(v.currentTime+(+document.getElementById('skip').value),(v.duration||1e9)-2);}
 function preset(q){document.getElementById('q').value=q;search();}
@@ -453,9 +475,7 @@ async function siteSearch(q){
   document.getElementById('webhead').style.display='none';
   document.getElementById('webres').innerHTML='';
   try{
-    const r=await fetch('/api/sites?action=search&q='+encodeURIComponent(q));
-    if(!r.ok)throw new Error('server '+r.status);
-    const j=await r.json();g.innerHTML='';
+    const j=await getJSON('/api/sites?action=search&q='+encodeURIComponent(q));g.innerHTML='';
     let total=0;
     (j.groups||[]).forEach(gr=>{
       if(!(gr.items||[]).length)return;
@@ -524,11 +544,10 @@ async function hitBrowse(page){
   if(pg===1)g.innerHTML='<p class="note">⏳ กำลังโหลด...</p>';
   try{
     let url;
-    if(HH.letter)url='/api/sites?custom='+encodeURIComponent('https://hit-anime.com/?s='+HH.letter)+'&parser=hit';
-    else if(HH.genre)url='/api/sites?custom='+encodeURIComponent('https://hit-anime.com/genres/'+HH.genre+'/')+'&parser=hit';
+    if(HH.letter)url='/api/sites?custom='+encodeURIComponent('https://hit-anime.com/?s='+HH.letter)+'&parser=hit&page='+pg;
+    else if(HH.genre)url='/api/sites?custom='+encodeURIComponent('https://hit-anime.com/genres/'+HH.genre+'/')+'&parser=hit&page='+pg;
     else url='/api/sites?source='+HH.cat+'&page='+pg;
-    const r=await fetch(url);if(!r.ok)throw new Error('server '+r.status);
-    const j=await r.json();
+    const j=await getJSON(url);
     g.innerHTML='';
     (j.items||[]).forEach(m=>{
       const d=document.createElement('div');d.className='bcard';
@@ -559,8 +578,7 @@ async function movieBrowse(page){
     if(MV.year)url+='&year='+MV.year;
     if(MV.type)url+='&type='+encodeURIComponent(MV.type);
     if(MV.letter)url+='&letter='+encodeURIComponent(MV.letter);
-    const r=await fetch(url);if(!r.ok)throw new Error('server '+r.status);
-    const j=await r.json();
+    const j=await getJSON(url);
     g.innerHTML='';
     let items=j.items||[];
     MV.page=pg;
@@ -619,8 +637,7 @@ async function seriesBrowse(page){
       if(SR.sdvoice&&SR.sdcat!=='latest'&&SR.sdcat!=='thai')base+=SR.sdvoice+'/';
       url='/api/sites?custom='+encodeURIComponent(base)+'&parser=sd'+'&page='+pg;
     }
-    const r=await fetch(url);if(!r.ok)throw new Error('server '+r.status);
-    const j=await r.json();
+    const j=await getJSON(url);
     g.innerHTML='';
     let items=j.items||[];
     SR.page=pg;
@@ -644,9 +661,12 @@ async function expandSeries(url,title){
   panel.style.display='block';
   panel.innerHTML='<h3>'+title+'</h3><p class="note">⏳ กำลังโหลดตอน...</p>';
   panel.scrollIntoView();
-  const epBtn=(box,label,fn)=>{
-    const b=document.createElement('button');
-    b.textContent=label;b.onclick=fn;box.appendChild(b);return b;
+  EPTITLE=title;ASC=true;
+  const render=items=>{
+    EP=items;
+    panel.innerHTML='<h3>'+title+' — '+items.length+' ตอน</h3><div class="eps"></div>';
+    const box=panel.querySelector('.eps');
+    items.forEach((e,i)=>{const b=document.createElement('button');b.textContent='EP.'+e.ep;b.onclick=()=>playEpIndex(i);box.appendChild(b);});
   };
   try{
     // 037hd: หน้า watch เป็น JS app — เอาลิสต์ตอนจาก API โดยตรง
@@ -654,16 +674,7 @@ async function expandSeries(url,title){
     if(m37){
       const eps=JSON.parse(await pGet('https://037hddd.com/api/series/'+m37[1]+'/episodes'));
       if(!eps.length)throw new Error('empty');
-      panel.innerHTML='<h3>'+title+' — '+eps.length+' ตอน</h3><div class="eps"></div>';
-      const box=panel.querySelector('.eps');
-      eps.forEach(e=>{
-        epBtn(box,'EP.'+e.ep_number,async ev=>{
-          const b=ev.target;b.disabled=true;const old=b.textContent;b.textContent='⏳';
-          try{await resolveO37Episode(m37[1],e.id,e.ep_number,title);}
-          catch(err){alert('เปิดตอนไม่ได้: '+err.message);}
-          finally{b.disabled=false;b.textContent=old;}
-        });
-      });
+      render(eps.map(e=>({ep:e.ep_number,play:()=>resolveO37Episode(m37[1],e.id,e.ep_number,title)})));
       return;
     }
     // seriesdet: ปุ่มตอนเป็น <button class="wmep-ep-btn" data-ep-num + data-url-th/en>
@@ -675,58 +686,37 @@ async function expandSeries(url,title){
         const num=(tag.match(/data-ep-num="(\d+)"/)||[])[1];
         const pu=(tag.match(/data-url-th="(https:[^"]+)"/)||[])[1]
           ||(tag.match(/data-url-en="(https:[^"]+)"/)||[])[1];
-        if(num&&pu&&!eps.some(e=>e.ep===+num))eps.push({ep:+num,url:pu});
+        if(num&&pu&&!eps.some(e=>e.ep===+num))eps.push({ep:+num,url:pu,ref:url});
       }
       if(!eps.length&&/เลือกตอน/.test(html)){
         const base=url.replace(/\/\d+\/?$/,'').replace(/\/+$/,'')+'/';
         const besc=base.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
         for(const m of html.matchAll(new RegExp('<a[^>]*href="('+besc+'(\\d{1,3})/?)"','g'))){
           const n=+m[2];
-          if(n<500&&!eps.some(e=>e.ep===n))eps.push({ep:n,url:m[1]});
+          if(n<500&&!eps.some(e=>e.ep===n))eps.push({ep:n,url:m[1],ref:url});
         }
-        if(eps.length&&!eps.some(e=>e.ep===1))eps.push({ep:1,url});
+        if(eps.length&&!eps.some(e=>e.ep===1))eps.push({ep:1,url,ref:url});
       }
       if(!eps.length)throw new Error('empty');
       eps.sort((a,b)=>a.ep-b.ep);
-      panel.innerHTML='<h3>'+title+' — '+eps.length+' ตอน</h3><div class="eps"></div>';
-      const box=panel.querySelector('.eps');
-      eps.forEach(e=>{
-        epBtn(box,'EP.'+e.ep,()=>{
-          FORCE_REF=url;
-          document.getElementById('u').value=e.url;setNow(title+' — EP.'+e.ep,-1);resolve();
-        });
-      });
+      render(eps);
       return;
     }
     // fallback เดิม: ขูด href ที่มี episode/ep/ตอน (แก้ relative URL ให้เป็น absolute)
     const html=await pGet(url);
-    const eps={};
+    const map={};
     [...html.matchAll(/href="([^"]*(?:episode|ep|ตอน)[^"]*)"/gi)].forEach(m=>{
-      let abs=m[1];try{abs=new URL(m[1],url).href;}catch(e){}
-      const n=abs.match(/(\d{1,3})/);
-      if(n&&+n[1]<2000&&!eps[+n[1]])eps[+n[1]]=abs;
+      let abs=m[1];try{abs=new URL(m[1],url).href;}catch(e){return;}
+      const n=abs.match(/(?:-ep-|[\/_-]ep[-_.]?|episode[-_]?|ตอนที่[-_ ]?)(\d{1,3})/i);
+      if(n&&+n[1]<2000&&!map[+n[1]])map[+n[1]]=abs;
     });
     [...html.matchAll(/href="(https:\/\/(?:hit-anime|anime-hit)\.com\/video\/[^"]+)"/g)].forEach(m=>{
       const n=m[1].match(/-ep-(\d+)/);
-      if(n&&!eps[+n[1]])eps[+n[1]]=m[1];
+      if(n&&!map[+n[1]])map[+n[1]]=m[1];
     });
-    const list=Object.keys(eps).map(Number).sort((a,b)=>a-b);
-    if(list.length){
-      panel.innerHTML='<h3>'+title+' — '+list.length+' ตอน</h3><div class="eps"></div>';
-      const epsBox=panel.querySelector('.eps');
-      list.forEach(n=>{
-        const b=document.createElement('button');
-        b.textContent='EP.'+n;
-        b.onclick=()=>{
-          document.getElementById('u').value=eps[n];
-          setNow(title+' — EP.'+n,list.indexOf(n));
-          resolve();
-        };
-        epsBox.appendChild(b);
-      });
-    }else{
-      panel.innerHTML='<h3>'+title+'</h3><p class="note">ไม่พบลิสต์ตอน — <button onclick="document.getElementById(\'u\').value=\''+url+'\';resolve()">ดูเลย</button></p>';
-    }
+    const list=Object.keys(map).map(Number).sort((a,b)=>a-b);
+    if(!list.length)throw new Error('empty');
+    render(list.map(n=>({ep:n,url:map[n]})));
   }catch(e){
     panel.innerHTML='<h3>'+title+'</h3><p class="note">โหลดไม่ได้ — <button onclick="document.getElementById(\'u\').value=\''+url+'\';resolve()">ดูเลย</button></p>';
   }
@@ -753,12 +743,23 @@ async function resolveHitVideo(pageUrl){
   }
   throw new Error('no-hit');
 }
+const PANEL_LOADED={anime:true};
+const SRC_JUMP={'anime-hit':['anime','hit-latest'],'037HD':['series','o37'],'AnimePahe':['anime','hit-sub']};
+function jumpSource(n){
+  const j=SRC_JUMP[n];
+  if(j){switchPanel(j[0],document.querySelector('#bigtabs button[data-p='+j[0]+']'));
+    if(j[0]==='anime')setH('cat',j[1]);else setS('src',j[1]);
+    document.getElementById('panel-'+j[0]).scrollIntoView();return;}
+  const q=document.getElementById('q').value.trim()||'อนิเมะ';
+  document.getElementById('q').value=q;search();
+}
 function switchPanel(p,btn){
   document.querySelectorAll('#bigtabs button').forEach(b=>b.classList.remove('on'));
   if(btn)btn.classList.add('on');
   document.getElementById('panel-anime').style.display=p==='anime'?'block':'none';
   document.getElementById('panel-movie').style.display=p==='movie'?'block':'none';
   document.getElementById('panel-series').style.display=p==='series'?'block':'none';
+  if(!PANEL_LOADED[p]){PANEL_LOADED[p]=true;(p==='movie'?movieBrowse:seriesBrowse)();}
 }
 const INFO_HOST=['tv.apple.com','primevideo.com','netflix.com','hotstar.com','disneyplus.com','wikipedia.org','imdb.com','facebook.com','instagram.com','twitter.com','x.com'];
 function isInfo(url){return INFO_HOST.some(h=>hostOf(url).endsWith(h));}
@@ -851,6 +852,5 @@ function renderEps(){
 document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')search()});
 document.getElementById('u').addEventListener('keydown',e=>{if(e.key==='Enter')resolve()});
 renderHRows();hitBrowse();
-renderMRows();movieBrowse();
-renderSRows();seriesBrowse();
+renderMRows();renderSRows();
 </script></body></html>
