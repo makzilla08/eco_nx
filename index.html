@@ -136,6 +136,7 @@ h3{margin:18px 0 4px}footer{font-size:12px;margin:24px 0;text-align:center;color
 <input type="text" id="u" placeholder="หรือวางลิงก์ตรง...">
 <button onclick="resolve()">ดูแบบคลีน</button>
 </div>
+<div id="vstatus" class="note" style="display:none;margin-top:10px;padding:8px 12px;background:#1a2333;border-radius:10px"></div>
 <video id="v" controls playsinline></video>
 <div class="row" id="qrow" style="display:none">
 <span class="note" id="playmode"></span>
@@ -195,6 +196,7 @@ async function pPost(url,body,headers,ref){
 }
 function hostOf(url){try{return new URL(url).hostname.replace(/^www\./,'')}catch(e){return''}}
 function setMode(t){document.getElementById('qrow').style.display='flex';document.getElementById('playmode').textContent=t;}
+function setLoading(msg){const el=document.getElementById('vstatus');if(!el)return;if(msg){el.style.display='block';el.textContent=msg;}else{el.style.display='none';el.textContent='';}}
 function buildQSel(h,levels,cur){
   const sel=document.getElementById('qsel');sel.innerHTML='';
   const auto=document.createElement('option');auto.value='-1';auto.textContent='Auto';
@@ -211,23 +213,27 @@ function play(src,ref){
   if(window._hls){try{window._hls.destroy()}catch(e){}window._hls=null}
   v.pause();v.removeAttribute('src');v.load();
   document.getElementById('qsel').innerHTML='';
+  const tryPlay=()=>v.play().catch(()=>{});
   if(src.includes('.m3u8')&&window.Hls&&Hls.isSupported()){const h=new Hls();window._hls=h;
     h.on(Hls.Events.ERROR,(ev,data)=>{
       if(data.fatal&&data.type==='networkError'&&!h._viaProxy){
         h._viaProxy=true;setMode('▶ ผ่าน server (เปลืองโควต้า)');
         h.loadSource(proxied(src,ref));
+        tryPlay();
       }
     });
     h.on(Hls.Events.MANIFEST_PARSED,(ev,data)=>{
+      setLoading('');
       const lv=data.levels||[];let pick=0;
       lv.forEach((l,i)=>{if(l.height&&l.height<=720)pick=i;});
       if(lv.length&&!lv[0].height)pick=lv.length>1?1:0;
       try{h.currentLevel=pick;}catch(e){}
       buildQSel(h,lv,pick);
+      tryPlay();
     });
     setMode('▶ ตรง (ไม่เปลืองโควต้า)');
     h.loadSource(src);
-    h.attachMedia(v);v.play().catch(()=>{});}
+    h.attachMedia(v);tryPlay();}
   else if(src.includes('.m3u8')){
     v._viaProxy=false;setMode('▶ ตรง (ไม่เปลืองโควต้า)');
     v.onerror=()=>{if(!v._viaProxy){v._viaProxy=true;setMode('▶ ผ่าน server (เปลืองโควต้า)');v.src=proxied(src,ref);v.play().catch(()=>{});}};
@@ -362,14 +368,27 @@ async function resolveO37Watch(pageUrl){
   const links=JSON.parse(await pGet('https://037hddd.com/api/watch-links/'+m[1]+'/'+m[2]));
   return playableFromO37Links(links);
 }
-async function resolveO37Episode(seriesId,epDbId,epNum,title){
+const STREAM_CACHE=new Map(),STREAM_TTL=8*60*1000;
+async function fetchO37Stream(seriesId,epDbId){
+  const key=seriesId+'/'+epDbId,c=STREAM_CACHE.get(key);
+  if(c&&Date.now()-c.t<STREAM_TTL)return c.v;
   const links=JSON.parse(await pGet('https://037hddd.com/api/watch-links/series/'+seriesId+'/ep/'+epDbId));
-  const j=await playableFromO37Links(links);
-  const ref=j.ref||'';
-  play(j.src,ref);LAST_DIRECT=j.src;
-  document.getElementById('directbox').style.display='flex';
-  document.getElementById('directurl').textContent=j.src.slice(0,70)+'…';
-  setNow(title+' — EP.'+epNum,-1);
+  const v=await playableFromO37Links(links);
+  STREAM_CACHE.set(key,{t:Date.now(),v});
+  return v;
+}
+async function resolveO37Episode(seriesId,epDbId,epNum,title,idx){
+  const label=title+' — EP.'+epNum,keep=(typeof idx==='number'&&idx>=0)?idx:-1;
+  setLoading('⏳ กำลังโหลด '+label+' …');
+  try{
+    const j=await fetchO37Stream(seriesId,epDbId);
+    play(j.src,j.ref||'');LAST_DIRECT=j.src;
+    document.getElementById('directbox').style.display='flex';
+    document.getElementById('directurl').textContent=j.src.slice(0,70)+'…';
+    setNow(label,keep);
+    if(keep>=0)[EP[keep-1],EP[keep+1]].forEach(n=>{if(n&&n.dbId)fetchO37Stream(seriesId,n.dbId).catch(()=>{});});
+  }catch(e){alert(e.message);setNow(label,keep);}
+  finally{setLoading('');}
 }
 function isSeriesUrl(url){
   if(/037hddd\.com\/watch\/series\/\d+/.test(url))return true;
@@ -421,6 +440,7 @@ async function resolveUrl(pageUrl){
 async function resolve(){
   const btn=document.querySelector('#epsec button[onclick="resolve()"]')||document.querySelector('button[onclick="resolve()"]');
   if(btn){btn.disabled=true;btn.textContent='⏳ กำลังโหลด...';}
+  setLoading('⏳ กำลังโหลด…');
   try{
     const j=await resolveUrl(u());
     if(j.yt)playYT(j.yt);
@@ -433,7 +453,7 @@ async function resolve(){
       document.getElementById('directurl').textContent=j.src.slice(0,70)+'…';}
     if(!CUR.label||CUR.idx<0&&!EP.length)setNow(u(),-1);
   }catch(e){alert(e.message)}
-  finally{if(btn){btn.disabled=false;btn.textContent='▶ ดูเลย';}FORCE_REF='';}
+  finally{if(btn){btn.disabled=false;btn.textContent='▶ ดูเลย';}FORCE_REF='';setLoading('');}
 }
 let LAST_DIRECT='';
 function copyDirect(){navigator.clipboard.writeText(LAST_DIRECT).then(()=>alert('ก็อปลิงก์แล้ว'))}
@@ -454,7 +474,7 @@ function playEpIndex(i){
   document.getElementById('nowtxt').textContent='▶ กำลังดู: '+CUR.label;
   document.getElementById('prevbtn').disabled=i<=0;
   document.getElementById('nextbtn').disabled=i>=EP.length-1;
-  if(e.play){e.play();return;}
+  if(e.play){setLoading('⏳ กำลังโหลด '+CUR.label+' …');e.play();return;}
   document.getElementById('u').value=e.url;if(e.ref)FORCE_REF=e.ref;resolve();
 }
 function stepEp(d){if(CUR.idx<0||!EP.length)return;playEpIndex(CUR.idx+d);}
@@ -674,7 +694,7 @@ async function expandSeries(url,title){
     if(m37){
       const eps=JSON.parse(await pGet('https://037hddd.com/api/series/'+m37[1]+'/episodes'));
       if(!eps.length)throw new Error('empty');
-      render(eps.map(e=>({ep:e.ep_number,play:()=>resolveO37Episode(m37[1],e.id,e.ep_number,title)})));
+      render(eps.map((e,i)=>({ep:e.ep_number,dbId:e.id,play:()=>resolveO37Episode(m37[1],e.id,e.ep_number,title,i)})));
       return;
     }
     // seriesdet: ปุ่มตอนเป็น <button class="wmep-ep-btn" data-ep-num + data-url-th/en>
