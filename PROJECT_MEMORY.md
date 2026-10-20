@@ -14,7 +14,7 @@
 - ลบ local copies: `~/AI app/eco_nx` (checkout เก่า `f7766fe`, diff ที่ค้างเป็นงานกลางทางไม่มีอะไรใหม่), `~/quarantine-2026-10-19/eco_nx_dev` (index.html เหมือน main เป๊ะ + serve.js → ย้าย serve.js มาแล้ว)
 - repo `makzilla08/nx` (ตัวก่อน fork เป็น eco_nx) — ลบแล้ว
 
-## 2026-10-20 — ⚽ เพิ่มหมวดฟุตบอลย้อนหลัง (ยังไม่ push)
+## 2026-10-20 — ⚽ เพิ่มหมวดฟุตบอลย้อนหลัง (✅ push แล้ว `5c2d0f2`)
 - **แหล่งข้อมูล: soccerfull.net** (WordPress, ขุดง่าย, เจอจากการค้น "manchester united full match replay")
   - โครงสร้าง: `/team/{slug}` (12 ทีม) · `/cate/{league}` (11 ลีก) · `/` (ล่าสุด 24 ใบ) · ไม่มี pagination, ไม่มี search สาธารณะ (`/search` → ต้อง login)
   - หน้าแมตช์ `{slug}-vs-{slug}-{postId}.html` → ปุ่มช่วงเวลา `?sid={sid}` (1st Half / 2nd Half / Full Match / ...En) → iframe `/play/{sid}` → HLS `/hls/{sid}.m3u8`
@@ -26,8 +26,9 @@
   - `index.html` — แท็บ `⚽ ฟุตบอล` (12 ทีม / 11 ลีก / ล่าสุด / ค้นหาทั้งเว็บ) + การ์ด `.fcard` (ขนาดต้นทาง 500×320 เต็ม, ไม่ crop) + เลือกช่วงเวลา → `play('/api/hls?...&direct=1')`
   - `serve.js` — รัน `api/*.js` ในเครื่องก่อน (fallback proxy ไป live) → ทดสอบ local ได้โดยไม่ต้อง deploy
 - **ผลเทสต์ local (port 8099)**: แท็บโหลด 24 การ์ด, เปิดแมตช์ได้ 7 ช่วงเวลา, เล่นได้ **1280×720 โหมด "ตรง"** (t เดินต่อเนื่อง) ทั้ง 1st Half และ Full Match
-- ข้อสังเกต: playlist ของ Full Match มี PTS offset (currentTime เริ่ม ~3891s) — ไฟล์เริ่มที่ ~65 นาที ไม่ใช่นาที 0
-- ยังค้าง: ยังไม่ commit/push (รอผู้ใช้ตัดสินใจ) + ลบ repo `makzilla08/nx` (รอ scope `delete_repo`)
+- **ผลเทสต์ live** (https://econx-three.vercel.app/, headed + Playwright): 24 การ์ด → 7 ช่วงเวลา → เล่น Full Match ต่อเนื่อง t=3.4→88.5s ที่ 1280×720 โหมด "ตรง" ไม่มี error
+- ข้อสังเกต: playlist บางอันมี PTS offset (currentTime เริ่ม ~3891s) — อาจเริ่มกลางเกม เช็คก่อนใช้งานจริง
+- ยังค้าง: ลบ repo `makzilla08/nx` (รอ scope `delete_repo` — ต้อง authorize ผ่าน github.com/login/device)
 
 ## ค้าง
 - (ว่าง — งานทั้งหมดเสร็จ)
