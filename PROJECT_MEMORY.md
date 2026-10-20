@@ -14,5 +14,20 @@
 - ลบ local copies: `~/AI app/eco_nx` (checkout เก่า `f7766fe`, diff ที่ค้างเป็นงานกลางทางไม่มีอะไรใหม่), `~/quarantine-2026-10-19/eco_nx_dev` (index.html เหมือน main เป๊ะ + serve.js → ย้าย serve.js มาแล้ว)
 - repo `makzilla08/nx` (ตัวก่อน fork เป็น eco_nx) — ลบแล้ว
 
+## 2026-10-20 — ⚽ เพิ่มหมวดฟุตบอลย้อนหลัง (ยังไม่ push)
+- **แหล่งข้อมูล: soccerfull.net** (WordPress, ขุดง่าย, เจอจากการค้น "manchester united full match replay")
+  - โครงสร้าง: `/team/{slug}` (12 ทีม) · `/cate/{league}` (11 ลีก) · `/` (ล่าสุด 24 ใบ) · ไม่มี pagination, ไม่มี search สาธารณะ (`/search` → ต้อง login)
+  - หน้าแมตช์ `{slug}-vs-{slug}-{postId}.html` → ปุ่มช่วงเวลา `?sid={sid}` (1st Half / 2nd Half / Full Match / ...En) → iframe `/play/{sid}` → HLS `/hls/{sid}.m3u8`
+  - **หลอกสแกนเนอร์**: m3u8 ชี้ไป `*.tiktokcdn.com/...image` (content-type image/png) แต่เนื้อจริงคือ MPEG-TS ห่อหัวด้วย PNG 1×1 (0x47 sync ทุก 188 byte) → hls.js เล่นได้ปกติ
+  - segment มี `Access-Control-Allow-Origin: *` → browser ดึงตรงจาก tiktokcdn ได้ (ไม่กินโควต้าเรา) แต่ **m3u8 ไม่มี CORS** → ต้อง proxy ผ่าน `/api/hls`
+- **โค้ดที่เพิ่ม**
+  - `api/football.js` (ใหม่) — `action=list` (kind=team|league|home) / `action=match` (คืนรายการช่วงเวลา sid) · โดเมนอนุญาตเฉพาะ soccerfull.net
+  - `api/hls.js` — เพิ่ม `direct=1` = ไม่ rewrite segment → คง URL เดิม (ดึงตรงจาก CDN ต้นทาง) แทนการพาผ่าน Vercel
+  - `index.html` — แท็บ `⚽ ฟุตบอล` (12 ทีม / 11 ลีก / ล่าสุด / ค้นหาทั้งเว็บ) + การ์ด `.fcard` (ขนาดต้นทาง 500×320 เต็ม, ไม่ crop) + เลือกช่วงเวลา → `play('/api/hls?...&direct=1')`
+  - `serve.js` — รัน `api/*.js` ในเครื่องก่อน (fallback proxy ไป live) → ทดสอบ local ได้โดยไม่ต้อง deploy
+- **ผลเทสต์ local (port 8099)**: แท็บโหลด 24 การ์ด, เปิดแมตช์ได้ 7 ช่วงเวลา, เล่นได้ **1280×720 โหมด "ตรง"** (t เดินต่อเนื่อง) ทั้ง 1st Half และ Full Match
+- ข้อสังเกต: playlist ของ Full Match มี PTS offset (currentTime เริ่ม ~3891s) — ไฟล์เริ่มที่ ~65 นาที ไม่ใช่นาที 0
+- ยังค้าง: ยังไม่ commit/push (รอผู้ใช้ตัดสินใจ) + ลบ repo `makzilla08/nx` (รอ scope `delete_repo`)
+
 ## ค้าง
 - (ว่าง — งานทั้งหมดเสร็จ)

@@ -21,6 +21,11 @@ button.ghost{background:#222}
 .bcard{background:#151b28;border-radius:10px;overflow:hidden;cursor:pointer;border:1px solid #232d45}
 .bcard:hover{border-color:#1f6feb}.bcard img{width:100%;height:170px;object-fit:cover;background:#222}
 .bcard .t{padding:6px;font-size:11px;min-height:44px}.bcard .s{color:#ffd75e;font-size:11px;padding:0 6px 6px}
+.fbgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin:10px 0}
+.fcard{background:#151b28;border-radius:10px;overflow:hidden;cursor:pointer;border:1px solid #232d45}
+.fcard:hover{border-color:#1f6feb}.fcard img{width:100%;height:auto;aspect-ratio:500/320;object-fit:contain;background:#0d1117}
+.fcard .t{padding:7px 7px 2px;font-size:13px;min-height:36px;font-weight:600}
+.fcard .s{color:#ffd75e;font-size:11px;padding:0 7px 7px}
 .pager{display:flex;gap:10px;justify-content:center;align-items:center;margin:10px 0}
 .pager span{color:#9fb3c8;font-size:14px;min-width:100px;text-align:center}
 .pager button{background:#1a2333;font-weight:400}
@@ -67,6 +72,7 @@ h3{margin:18px 0 4px}footer{font-size:12px;margin:24px 0;text-align:center;color
 <button data-p="anime" class="on" onclick="switchPanel('anime',this)">🎌 อนิเมะ</button>
 <button data-p="movie" onclick="switchPanel('movie',this)">🎬 หนัง</button>
 <button data-p="series" onclick="switchPanel('series',this)">📺 ซีรี่ส์</button>
+<button data-p="football" onclick="switchPanel('football',this)">⚽ ฟุตบอล</button>
 </div>
 <div id="panel-anime">
 <h3>🎌 อนิเมะ (hit-anime)</h3>
@@ -112,6 +118,23 @@ h3{margin:18px 0 4px}footer{font-size:12px;margin:24px 0;text-align:center;color
 </div>
 <div class="bgrid" id="seriesbrowse"></div>
 <div class="pager" id="pg-series" style="display:none"></div>
+</div>
+<div id="panel-football" style="display:none">
+<h3>⚽ ฟุตบอลย้อนหลัง — เต็มเกม</h3>
+<div class="frow"><span class="flabel">ทีม:</span><span id="fbteams"></span></div>
+<div class="frow"><span class="flabel">ลีก:</span><span id="fbleagues"></span></div>
+<div class="frow"><span class="flabel">อื่นๆ:</span><span id="fbmore"></span></div>
+<div class="frow"><span class="flabel">ค้นหา:</span><input id="fbq" placeholder="ชื่อทีม/แมตช์ เช่น manchester, arsenal" style="flex:1;min-width:160px"><button onclick="fbSearch()">ค้นหาทั้งเว็บ</button></div>
+<div class="fbgrid" id="fbgrid"></div>
+<div id="fbdetail" style="display:none">
+<div class="row" style="align-items:flex-start">
+<img id="fbimg" style="width:250px;max-width:100%;height:auto;aspect-ratio:500/320;object-fit:contain;border-radius:10px;background:#0d1117">
+<div style="flex:1"><h3 id="fbtitle" style="margin:0 0 6px"></h3><p class="note" id="fbmeta"></p>
+<div class="row"><button class="ghost" id="fbsrc">เปิดต้นทาง</button></div>
+</div></div>
+<div class="row"><span class="note">เลือกช่วงเวลา:</span></div>
+<div id="fbparts" class="eps"></div>
+</div>
 </div>
 <div id="results" class="grid"></div>
 <h3 id="webhead" style="display:none">🌐 จากทั่วเน็ต</h3>
@@ -779,7 +802,8 @@ function switchPanel(p,btn){
   document.getElementById('panel-anime').style.display=p==='anime'?'block':'none';
   document.getElementById('panel-movie').style.display=p==='movie'?'block':'none';
   document.getElementById('panel-series').style.display=p==='series'?'block':'none';
-  if(!PANEL_LOADED[p]){PANEL_LOADED[p]=true;(p==='movie'?movieBrowse:seriesBrowse)();}
+  document.getElementById('panel-football').style.display=p==='football'?'block':'none';
+  if(!PANEL_LOADED[p]){PANEL_LOADED[p]=true;if(p==='movie')movieBrowse();else if(p==='series')seriesBrowse();else if(p==='football')fbBrowse('team','manchester-united','แมนยู');}
 }
 const INFO_HOST=['tv.apple.com','primevideo.com','netflix.com','hotstar.com','disneyplus.com','wikipedia.org','imdb.com','facebook.com','instagram.com','twitter.com','x.com'];
 function isInfo(url){return INFO_HOST.some(h=>hostOf(url).endsWith(h));}
@@ -871,6 +895,86 @@ function renderEps(){
 }
 document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')search()});
 document.getElementById('u').addEventListener('keydown',e=>{if(e.key==='Enter')resolve()});
+/* ===== ⚽ ฟุตบอลย้อนหลัง (soccerfull.net) ===== */
+const FB_REF='https://soccerfull.net/';
+const FB_TEAMS=[['manchester-united','🔴 แมนยู'],['liverpool','🔴 ลิเวอร์พูล'],['arsenal','🔴 อาร์เซนอล'],['chelsea','🔵 เชลซี'],['manchester-city','🔵 แมนซิตี้'],['tottenham-hotspur','🔵 สเปอร์ส'],['inter','⚫ อินเตอร์'],['juventus','⚫ ยูเวนตุส'],['milan','🔴 เอซี มิลาน'],['real-madrid','⚪ เรอัลมาดริด'],['barcelona','🔵 บาร์เซโลนา'],['paris-saint-germain','🔵 เปแรส ซ็องต์ แชร์กแมง']];
+const FB_LEAGUES=[['premier-league','🏴 พรีเมียร์ลีก'],['laliga','🇪🇸 ลาลีกา'],['serie-a','🇮🇹 เซเรีย อา'],['bundesliga','🇩🇪 บุนเดสลีกา'],['ligue-1','🇫🇷 ลีกเอิง'],['champions-league','⭐ แชมเปียนส์ลีก'],['europa-league','⭐ ยูโรปา ลีก'],['conference-league','⭐ คอนเฟอเรนซ์'],['fifa-world-cup','🌐 ฟุตบอลโลก'],['uefa-euro','🌐 ยูโรปา'],['world-cup-2026','🌐 โลก 2026']];
+let FBLIST=[],FBITEM=null;
+function fbEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function fbChips(el,arr,cur,fn){
+  const box=document.getElementById(el);box.innerHTML='';
+  arr.forEach(([v,label])=>{const b=document.createElement('button');b.textContent=label;
+    if(cur===v)b.classList.add('on');
+    b.onclick=()=>fn(v,label);box.appendChild(b);});
+}
+function fbBrowse(kind,slug,label){
+  fbChips('fbteams',FB_TEAMS,kind==='team'?slug:'',(v,l)=>fbBrowse('team',v,l));
+  fbChips('fbleagues',FB_LEAGUES,kind==='league'?slug:'',(v,l)=>fbBrowse('league',v,l));
+  const more=document.getElementById('fbmore');more.innerHTML='';
+  [['home','🆕 ล่าสุดทั้งเว็บ']].concat(FB_LEAGUES.map(l=>[l[0],'🏆 '+l[1]])).forEach(([v,l])=>{
+    const b=document.createElement('button');b.textContent=l;
+    b.onclick=()=>fbBrowse(v==='home'?'home':'league',v,l);more.appendChild(b);});
+  const g=document.getElementById('fbgrid');
+  document.getElementById('fbdetail').style.display='none';
+  g.innerHTML='<p class="note">⏳ กำลังโหลด '+fbEsc(label||slug)+'...</p>';
+  getJSON('/api/football?action=list&kind='+kind+'&slug='+encodeURIComponent(slug))
+    .then(j=>{FBLIST=j.items||[];fbRender();})
+    .catch(e=>{g.innerHTML='<p class="note">โหลดไม่ได้: '+fbEsc(e.message.slice(0,90))+'</p>';});
+}
+function fbRender(){
+  const g=document.getElementById('fbgrid');g.innerHTML='';
+  FBLIST.forEach(m=>{
+    const d=document.createElement('div');d.className='fcard';
+    d.innerHTML='<img loading="lazy" src="'+fbEsc(m.cover)+'"><div class="t">'+fbEsc(m.title)+'</div><div class="s">'+fbEsc([m.league,m.views].filter(Boolean).join(' • '))+'</div>';
+    d.onclick=()=>fbOpen(m);g.appendChild(d);
+  });
+  if(!FBLIST.length)g.innerHTML='<p class="note">ไม่พบแมตช์ในหน้านี้</p>';
+}
+async function fbOpen(m){
+  FBITEM=m;
+  const box=document.getElementById('fbdetail');box.style.display='block';
+  document.getElementById('fbtitle').textContent=m.title;
+  document.getElementById('fbmeta').textContent=[m.league,m.views].filter(Boolean).join(' • ');
+  document.getElementById('fbimg').src=m.cover||'';
+  document.getElementById('fbsrc').onclick=()=>window.open(m.url,'_blank');
+  const parts=document.getElementById('fbparts');parts.innerHTML='<p class="note">⏳ กำลังโหลดช่วงเวลา...</p>';
+  try{
+    const j=await getJSON('/api/football?action=match&url='+encodeURIComponent(m.url));
+    parts.innerHTML='';
+    (j.parts||[]).forEach(p=>{
+      const b=document.createElement('button');b.textContent=p.label;
+      b.onclick=()=>{[...parts.children].forEach(x=>x.classList.remove('cur'));b.classList.add('cur');fbPlay(p,m);};
+      parts.appendChild(b);
+    });
+    if(!(j.parts||[]).length)parts.innerHTML='<p class="note">ไม่พบช่วงเวลาในหน้านี้</p>';
+    if(j.title)document.getElementById('fbtitle').textContent=j.title;
+    if(j.cover)document.getElementById('fbimg').src=j.cover;
+    box.scrollIntoView();
+  }catch(e){parts.innerHTML='<p class="note">โหลดไม่ได้: '+fbEsc(e.message.slice(0,90))+'</p>';}
+}
+function fbPlay(p,m){
+  const src='/api/hls?url='+encodeURIComponent('https://soccerfull.net/hls/'+p.sid+'.m3u8')+'&direct=1';
+  document.getElementById('u').value=m.url;
+  setNow(m.title+' — '+p.label,-1);
+  setLoading('⏳ กำลังโหลดสตรีม...');
+  play(src,FB_REF);
+}
+async function fbSearch(){
+  const q=(document.getElementById('fbq').value||'').trim().toLowerCase();
+  if(!q)return;
+  const g=document.getElementById('fbgrid');
+  g.innerHTML='<p class="note">⏳ กำลังค้นทั้งเว็บ ('+fbEsc(q)+')...</p>';
+  try{
+    const rs=await Promise.all(FB_LEAGUES.map(l=>getJSON('/api/football?action=list&kind=league&slug='+l[0]).catch(()=>({items:[]}))));
+    const seen=new Set(),out=[];
+    rs.forEach(r=>(r.items||[]).forEach(m=>{
+      if(seen.has(m.url))return;seen.add(m.url);
+      if(m.title.toLowerCase().includes(q))out.push(m);}));
+    FBLIST=out;fbRender();
+    if(!out.length)g.innerHTML='<p class="note">ไม่พบ "'+fbEsc(q)+'"</p>';
+  }catch(e){g.innerHTML='<p class="note">ค้นหาไม่สำเร็จ: '+fbEsc(e.message.slice(0,90))+'</p>';}
+}
+document.getElementById('fbq').addEventListener('keydown',e=>{if(e.key==='Enter')fbSearch()});
 renderHRows();hitBrowse();
 renderMRows();renderSRows();
 </script></body></html>

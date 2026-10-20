@@ -8,6 +8,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'need ?url=https://...' });
   }
   const referer = req.query.ref || '';
+  const direct = req.query.direct === '1';
   try {
     const ctl = new AbortController();
     const to = setTimeout(() => ctl.abort(), 30000);
@@ -29,13 +30,23 @@ export default async function handler(req, res) {
     const self = '/api/hls';
     const prox = u => self + '?url=' + encodeURIComponent(new URL(u, base).href) + (referer ? '&ref=' + encodeURIComponent(referer) : '');
     let text = buf.toString('utf-8');
-    text = text.replace(/URI="([^"]+)"/g, (_, u) => 'URI="' + prox(u) + '"');
-    text = text.split('\n').map(line => {
-      const t = line.trim();
-      if (!t || t.startsWith('#')) return line;
-      if (/^https?:\/\//i.test(t)) return prox(t);
-      return prox(t);
-    }).join('\n');
+    if (direct) {
+      // เก็บ URL เดิมไว้ (segment CDN ส่ง Access-Control-Allow-Origin: * → browser ดึงตรง ไม่กินโควต้าเรา)
+      text = text.replace(/URI="([^"]+)"/g, (_, u) => 'URI="' + new URL(u, base).href + '"');
+      text = text.split('\n').map(line => {
+        const t = line.trim();
+        if (!t || t.startsWith('#')) return line;
+        return new URL(t, base).href;
+      }).join('\n');
+    } else {
+      text = text.replace(/URI="([^"]+)"/g, (_, u) => 'URI="' + prox(u) + '"');
+      text = text.split('\n').map(line => {
+        const t = line.trim();
+        if (!t || t.startsWith('#')) return line;
+        if (/^https?:\/\//i.test(t)) return prox(t);
+        return prox(t);
+      }).join('\n');
+    }
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
     res.setHeader('Cache-Control', 'no-cache');
     return res.status(200).send(text);
