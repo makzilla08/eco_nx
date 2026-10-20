@@ -1,1 +1,8 @@
-{"name": "nx-backend", "private": true, "type": "module"}
+{
+  "name": "eco_nx",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node serve.js"
+  }
+}
