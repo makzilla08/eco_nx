@@ -276,7 +276,11 @@ function play(src,ref,onFail,forceProxy){
   let failed=false;const fail=()=>{if(failed)return;failed=true;onFail&&onFail();};
   const tryPlay=()=>v.play().catch(()=>{});
   const start=forceProxy?proxied(src,ref):src;
-  if(src.includes('.m3u8')&&window.Hls&&Hls.isSupported()){const h=new Hls();window._hls=h;
+  if(src.includes('.m3u8')&&window.Hls&&Hls.isSupported()){const h=new Hls({
+    manifestLoadPolicy:{default:{maxTimeToFirstByteMs:20000,maxLoadTimeMs:60000,timeoutRetry:{maxNumRetry:2,retryDelayMs:1000,maxRetryDelayMs:8000},errorRetry:{maxNumRetry:2,retryDelayMs:1000,maxRetryDelayMs:8000}}},
+    playlistLoadPolicy:{default:{maxTimeToFirstByteMs:20000,maxLoadTimeMs:60000,timeoutRetry:{maxNumRetry:3,retryDelayMs:1000,maxRetryDelayMs:8000},errorRetry:{maxNumRetry:3,retryDelayMs:1000,maxRetryDelayMs:8000}}},
+    fragLoadPolicy:{default:{maxTimeToFirstByteMs:30000,maxLoadTimeMs:120000,timeoutRetry:{maxNumRetry:3,retryDelayMs:2000,maxRetryDelayMs:8000},errorRetry:{maxNumRetry:3,retryDelayMs:2000,maxRetryDelayMs:8000}}}
+  });window._hls=h;
     h._viaProxy=!!forceProxy;
     h.on(Hls.Events.ERROR,(ev,data)=>{
       if(!data.fatal)return;
