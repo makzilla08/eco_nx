@@ -92,7 +92,11 @@ async function resolveChannels(clSrc, blob) {
     signal: AbortSignal.timeout(12000),
   });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok || !j.d) throw new Error(j.e || ('resolve http ' + r.status));
+  if (!r.ok || !j.d) {
+    let payload = '';
+    try { payload = Buffer.from(JSON.parse(signed.body).t.split('.')[0], 'base64url').toString(); } catch (e) {}
+    throw new Error((j.e || 'http ' + r.status) + ' | payload ' + payload.slice(0, 200));
+  }
   const url = Buffer.from(j.d, 'base64').toString();
   let title = 'Liveball';
   try {
