@@ -84,6 +84,7 @@ h3{margin:18px 0 4px}footer{font-size:12px;margin:24px 0;text-align:center;color
 <button data-p="movie" onclick="switchPanel('movie',this)">🎬 หนัง</button>
 <button data-p="series" onclick="switchPanel('series',this)">📺 ซีรี่ส์</button>
 <button data-p="football" onclick="switchPanel('football',this)">⚽ ฟุตบอล</button>
+<button data-p="football-live" onclick="switchPanel('football-live',this)">📡 ดูบอลสด</button>
 <button data-p="cont" onclick="switchPanel('cont',this)" id="tabcont">⏱ ดูต่อ</button>
 </div>
 <div id="panel-anime">
@@ -146,6 +147,21 @@ h3{margin:18px 0 4px}footer{font-size:12px;margin:24px 0;text-align:center;color
 </div></div>
 <div class="row"><span class="note">เลือกช่วงเวลา:</span></div>
 <div id="fbparts" class="eps"></div>
+</div>
+</div>
+<div id="panel-football-live" style="display:none">
+<h3>📡 ดูบอลสด — ทุกลีก ทุกคู่</h3>
+<div class="frow"><span class="flabel">ลีก:</span><span id="fblleagues"></span></div>
+<div class="frow"><span class="flabel">สถานะ:</span><span id="fblstatus"></span></div>
+<div class="fbgrid" id="fblgrid"></div>
+<div id="fbldetail" style="display:none">
+<div class="row" style="align-items:flex-start">
+<img id="fblimg" style="width:250px;max-width:100%;height:auto;aspect-ratio:500/320;object-fit:contain;border-radius:10px;background:#0d1117">
+<div style="flex:1"><h3 id="fbltitle" style="margin:0 0 6px"></h3><p class="note" id="fblmeta"></p>
+<div class="row"><button class="ghost" id="fblsrc">เปิดต้นทาง</button></div>
+</div></div>
+<div class="row"><span class="note">เลือกช่องสัญญาณ:</span></div>
+<div id="fblchannels" class="eps"></div>
 </div>
 </div>
 <div id="panel-cont" style="display:none">
@@ -913,9 +929,16 @@ function switchPanel(p,btn){
   document.getElementById('panel-movie').style.display=p==='movie'?'block':'none';
   document.getElementById('panel-series').style.display=p==='series'?'block':'none';
   document.getElementById('panel-football').style.display=p==='football'?'block':'none';
+  document.getElementById('panel-football-live').style.display=p==='football-live'?'block':'none';
   document.getElementById('panel-cont').style.display=p==='cont'?'block':'none';
   if(p==='cont'){renderCont();return;}
-  if(!PANEL_LOADED[p]){PANEL_LOADED[p]=true;if(p==='movie')movieBrowse();else if(p==='series')seriesBrowse();else if(p==='football')fbBrowse('team','manchester-united','แมนยู');}
+  if(!PANEL_LOADED[p]){
+    PANEL_LOADED[p]=true;
+    if(p==='movie')movieBrowse();
+    else if(p==='series')seriesBrowse();
+    else if(p==='football')fbBrowse('team','manchester-united','แมนยู');
+    else if(p==='football-live')fblBrowse();
+  }
 }
 const INFO_HOST=['tv.apple.com','primevideo.com','netflix.com','hotstar.com','disneyplus.com','wikipedia.org','imdb.com','facebook.com','instagram.com','twitter.com','x.com'];
 function isInfo(url){return INFO_HOST.some(h=>hostOf(url).endsWith(h));}
@@ -1102,6 +1125,98 @@ async function fbSearch(){
   }catch(e){g.innerHTML='<p class="note">ค้นหาไม่สำเร็จ: '+fbEsc(e.message.slice(0,90))+'</p>';}
 }
 document.getElementById('fbq').addEventListener('keydown',e=>{if(e.key==='Enter')fbSearch()});
+/* ===== 📡 ฟุตบอลสด (dooball-doonang GraphQL) ===== */
+const FBL_REF='https://www.dooball-doonang.com/';
+const FBL_WHITELIST=['Premier League','Bundesliga','La Liga','Ligue 1','Champions League'];
+let FBL_LIST=[],FBL_ITEM=null;
+let FBL_LEAGUES=[['','🌐 ทุกลีก']];
+function fblEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function fblChips(el,arr,cur,fn){
+  const box=document.getElementById(el);box.innerHTML='';
+  arr.forEach(([v,label])=>{const b=document.createElement('button');b.textContent=label;
+    if(cur===v)b.classList.add('on');
+    b.onclick=()=>fn(v,label);box.appendChild(b);});
+}
+async function fblBrowse(leagueId,statusFilter){
+  fblChips('fblleagues',FBL_LEAGUES,leagueId||'',(v,l)=>fblBrowse(v||'',statusFilter||''));
+  fblChips('fblstatus',[['LIVE','🔴 LIVE'],['UPCOMING','⏰ กำลังจะเริ่ม'],['FINISHED','✅ จบแล้ว']],statusFilter||'',(v,l)=>fblBrowse(leagueId||'',v||''));
+  const g=document.getElementById('fblgrid');
+  document.getElementById('fbldetail').style.display='none';
+  g.innerHTML='<p class="note">⏳ กำลังโหลดแมตช์สด...</p>';
+  try{
+    const [a,b]=await Promise.allSettled([
+      getJSON('/api/football-live?action=list'+(leagueId?'&league='+leagueId:'')+(statusFilter?'&status='+statusFilter:'')),
+      getJSON('/api/liveball?action=list')
+    ]);
+    if(a.status==='rejected'&&b.status==='rejected')throw a.reason;
+    let items=[...(a.status==='fulfilled'?(a.value.items||[]):[]),...(b.status==='fulfilled'?(b.value.items||[]):[])];
+    if(a.status==='rejected'&&!items.length)throw a.reason;
+    if(b.status==='rejected'&&!items.length)throw b.reason;
+    items=items.filter(m=>FBL_WHITELIST.includes(m.league));
+    if(statusFilter)items=items.filter(m=>m.state===statusFilter);
+    if(leagueId)items=items.filter(m=>m.league===leagueId);
+    FBL_LIST=items;
+    if(!leagueId&&!statusFilter)fblRenderLeagues(items);
+    fblChips('fblleagues',FBL_LEAGUES,leagueId||'',(v,l)=>fblBrowse(v||'',statusFilter||''));
+    fblRender();
+  }catch(e){g.innerHTML='<p class="note">โหลดไม่ได้: '+fblEsc(e.message.slice(0,90))+'</p>';}
+}
+function fblRenderLeagues(items){
+  const seen=new Set(),leagues=[];
+  items.forEach(m=>{if(m.league&&FBL_WHITELIST.includes(m.league)&&!seen.has(m.league)){seen.add(m.league);leagues.push([m.league,m.league])}});
+  leagues.sort((a,b)=>FBL_WHITELIST.indexOf(a[0])-FBL_WHITELIST.indexOf(b[0]));
+  FBL_LEAGUES=[['','🌐 ทุกลีก'],...leagues];
+}
+function fblRender(){
+  const g=document.getElementById('fblgrid');g.innerHTML='';
+  FBL_LIST.forEach(m=>{
+    const d=document.createElement('div');d.className='fcard';
+    const stateBadge=m.state==='LIVE'?'<span style="color:#ff4444;font-weight:bold">🔴 LIVE</span>':(m.state==='UPCOMING'?'<span style="color:#ffaa00">⏰ '+fmtTime(m.time)+'</span>':'<span style="color:#888">✅ จบ</span>');
+    d.innerHTML='<img loading="lazy" src="'+fblEsc(m.cover)+'"><div class="t">'+fblEsc(m.homeTeam)+' vs '+fblEsc(m.awayTeam)+'</div><div class="s">'+fblEsc(m.league)+' • '+stateBadge+'</div>';
+    d.onclick=()=>fblOpen(m);g.appendChild(d);
+  });
+  if(!FBL_LIST.length)g.innerHTML='<p class="note">ไม่มีแมตช์ในขณะนี้</p>';
+}
+function fmtTime(iso){
+  if(!iso)return'';
+  try{const d=new Date(iso);return d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Bangkok'});}catch(e){return'';}
+}
+async function fblOpen(m){
+  FBL_ITEM=m;
+  const box=document.getElementById('fbldetail');box.style.display='block';
+  document.getElementById('fbltitle').textContent=m.homeTeam+' vs '+m.awayTeam;
+  const score=m.state==='LIVE'?(' '+m.homeScore+' - '+m.awayScore):'';
+  const srcTag=m.src==='liveball'?' • 📡 Liveball':'';
+  document.getElementById('fblmeta').textContent=m.league+score+' • '+fmtTime(m.time)+srcTag;
+  document.getElementById('fblimg').src=m.cover||'';
+  const isLb=m.src==='liveball';
+  document.getElementById('fblsrc').onclick=()=>window.open(isLb?('https://liveball.sx/match/'+m.id):(FBL_REF+'live/watch/'+m.id),'_blank');
+  const ch=document.getElementById('fblchannels');ch.innerHTML='<p class="note">⏳ กำลังโหลดช่องสัญญาณ...</p>';
+  try{
+    const j=await getJSON(isLb?('/api/liveball?action=detail&id='+m.id):('/api/football-live?action=detail&id='+m.id));
+    fblRenderChannels(j.channels||[]);
+  }catch(e){ch.innerHTML='<p class="note">โหลดช่องไม่ได้: '+fblEsc(e.message.slice(0,90))+'</p>';}
+  box.scrollIntoView();
+}
+function fblRenderChannels(channels){
+  const ch=document.getElementById('fblchannels');ch.innerHTML='';
+  if(!channels.length){ch.innerHTML='<p class="note">ไม่พบช่องสัญญาณสำหรับแมตช์นี้</p>';return;}
+  channels.forEach(c=>{
+    const b=document.createElement('button');b.textContent=c.title+(c.tvstation?' ('+c.tvstation+')':'');
+    if(!c.url){b.disabled=true;b.style.opacity=.55;b.style.cursor='default';b.textContent='⛔ '+c.title;ch.appendChild(b);return;}
+    b.onclick=()=>{[...ch.children].forEach(x=>x.classList.remove('cur'));b.classList.add('cur');fblPlay(c);};
+    ch.appendChild(b);
+  });
+}
+function fblPlay(c){
+  const src=c.url;
+  const isLb=FBL_ITEM.src==='liveball';
+  const ref=isLb?'https://liveball.sx/':FBL_REF;
+  document.getElementById('u').value=isLb?('https://liveball.sx/match/'+FBL_ITEM.id):(FBL_REF+'live/watch/'+FBL_ITEM.id);
+  setNow(FBL_ITEM.homeTeam+' vs '+FBL_ITEM.awayTeam+' — '+c.title,-1);
+  setLoading('⏳ กำลังเชื่อมต่อสตรีม...');
+  play(src,ref);
+}
 renderHRows();hitBrowse();
 renderMRows();renderSRows();
 </script></body></html>
