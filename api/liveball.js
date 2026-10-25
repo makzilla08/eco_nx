@@ -184,6 +184,18 @@ export default async function handler(req, res) {
       return res.status(200).json(data);
     }
 
+    if (action === 'ping') {
+      // DEBUG: post a pre-signed body (t,f) from this server's IP
+      const body = req.query.tf ? decodeURIComponent(req.query.tf) : '';
+      const r = await fetch(BASE + '/api/c/r', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'User-Agent': UA, 'Referer': REF, 'Origin': BASE },
+        body, signal: AbortSignal.timeout(12000),
+      });
+      const t = await r.text();
+      return res.status(200).json({ status: r.status, resp: t.slice(0, 300) });
+    }
+
     return res.status(400).json({ error: 'unknown action' });
   } catch (e) {
     return res.status(502).json({ error: String(e.message || e).slice(0, 150) });
