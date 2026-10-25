@@ -79,9 +79,26 @@ http.createServer(async (req, res) => {
   const rel = decodeURIComponent(req.url.split('?')[0]);
   const file = path.join(ROOT, rel === '/' ? 'index.html' : rel);
   if (!file.startsWith(ROOT)) { res.writeHead(403); res.end('forbidden'); return; }
-  fs.readFile(file, (e, b) => {
-    if (e) { res.writeHead(404); res.end('not found'); return; }
-    res.writeHead(200, { 'content-type': TYPES[path.extname(file)] || 'application/octet-stream' });
-    res.end(b);
+  fs.stat(file, (se, st) => {
+    if (se || !st.isFile()) { res.writeHead(404); res.end('not found'); return; }
+    const type = TYPES[path.extname(file)] || 'application/octet-stream';
+    const m = req.headers.range && /^bytes=(\d*)-(\d*)$/.exec(req.headers.range);
+    if (m) {
+      let start, end;
+      if (m[1] === '') { start = Math.max(0, st.size - (+m[2] || 0)); end = st.size - 1; }
+      else { start = +m[1]; end = m[2] === '' ? st.size - 1 : Math.min(+m[2], st.size - 1); }
+      if (start > end || start >= st.size) {
+        res.writeHead(416, { 'Content-Range': 'bytes */' + st.size, 'Accept-Ranges': 'bytes' });
+        res.end(); return;
+      }
+      res.writeHead(206, {
+        'Content-Type': type, 'Accept-Ranges': 'bytes',
+        'Content-Length': end - start + 1, 'Content-Range': `bytes ${start}-${end}/${st.size}`,
+      });
+      fs.createReadStream(file, { start, end }).pipe(res);
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Content-Length': st.size });
+    fs.createReadStream(file).pipe(res);
   });
 }).listen(PORT, () => console.log('dev server http://localhost:' + PORT + ' (api: local → ' + TARGET + ')'));
