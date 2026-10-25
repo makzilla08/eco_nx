@@ -264,19 +264,23 @@ function buildQSel(h,levels,cur){
 }
 const HLS_PROXY='https://nx-hls.hls-worker.workers.dev';
 function proxied(src,ref){return HLS_PROXY+'?url='+encodeURIComponent(src)+(ref?('&ref='+encodeURIComponent(ref)):'');}
-function play(src,ref){
+function play(src,ref,onFail){
   document.getElementById('yt').style.display='none';const v=document.getElementById('v');v.style.display='block';
   if(window._hls){try{window._hls.destroy()}catch(e){}window._hls=null}
   v.pause();v.removeAttribute('src');v.load();
   document.getElementById('qsel').innerHTML='';
+  let failed=false;const fail=()=>{if(failed)return;failed=true;onFail&&onFail();};
   const tryPlay=()=>v.play().catch(()=>{});
   if(src.includes('.m3u8')&&window.Hls&&Hls.isSupported()){const h=new Hls();window._hls=h;
     h.on(Hls.Events.ERROR,(ev,data)=>{
-      if(data.fatal&&data.type==='networkError'&&!h._viaProxy){
+      if(!data.fatal)return;
+      if(data.type==='networkError'&&!h._viaProxy){
         h._viaProxy=true;setMode('▶ ผ่าน server (เปลืองโควต้า)');
         h.loadSource(proxied(src,ref));
         tryPlay();
-      }
+      }else if(data.type==='mediaError'&&!h._mediaRec){
+        h._mediaRec=true;h.recoverMediaError();
+      }else fail();
     });
     h.on(Hls.Events.MANIFEST_PARSED,(ev,data)=>{
       setLoading('');
@@ -292,7 +296,7 @@ function play(src,ref){
     h.attachMedia(v);tryPlay();}
   else if(src.includes('.m3u8')){
     v._viaProxy=false;setMode('▶ ตรง (ไม่เปลืองโควต้า)');
-    v.onerror=()=>{if(!v._viaProxy){v._viaProxy=true;setMode('▶ ผ่าน server (เปลืองโควต้า)');v.src=proxied(src,ref);v.play().catch(()=>{});}};
+    v.onerror=()=>{if(!v._viaProxy){v._viaProxy=true;setMode('▶ ผ่าน server (เปลืองโควต้า)');v.src=proxied(src,ref);v.play().catch(()=>{});}else fail();};
     v.src=src;v.play().catch(()=>{});}
   else{document.getElementById('qrow').style.display='none';v.src=src;v.play().catch(()=>{});}
 }
@@ -1128,7 +1132,7 @@ document.getElementById('fbq').addEventListener('keydown',e=>{if(e.key==='Enter'
 /* ===== 📡 ฟุตบอลสด (dooball-doonang GraphQL) ===== */
 const FBL_REF='https://www.dooball-doonang.com/';
 const FBL_WHITELIST=['Premier League','Bundesliga','La Liga','Ligue 1','Champions League'];
-let FBL_LIST=[],FBL_ITEM=null;
+let FBL_LIST=[],FBL_ITEM=null,FBL_CH=[];
 let FBL_LEAGUES=[['','🌐 ทุกลีก']];
 function fblEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function fblChips(el,arr,cur,fn){
@@ -1199,6 +1203,7 @@ async function fblOpen(m){
   box.scrollIntoView();
 }
 function fblRenderChannels(channels){
+  FBL_CH=channels;
   const ch=document.getElementById('fblchannels');ch.innerHTML='';
   if(!channels.length){ch.innerHTML='<p class="note">ไม่พบช่องสัญญาณสำหรับแมตช์นี้</p>';return;}
   channels.forEach(c=>{
@@ -1208,14 +1213,26 @@ function fblRenderChannels(channels){
     ch.appendChild(b);
   });
 }
-function fblPlay(c){
+function fblPlay(c,tried){
+  tried=tried||new Set();if(c.url)tried.add(c.url);
   const src=c.url;
   const isLb=FBL_ITEM.src==='liveball';
   const ref=isLb?'https://liveball.sx/':FBL_REF;
   document.getElementById('u').value=isLb?('https://liveball.sx/match/'+FBL_ITEM.id):(FBL_REF+'live/watch/'+FBL_ITEM.id);
   setNow(FBL_ITEM.homeTeam+' vs '+FBL_ITEM.awayTeam+' — '+c.title,-1);
   setLoading('⏳ กำลังเชื่อมต่อสตรีม...');
-  play(src,ref);
+  const next=(FBL_CH||[]).find(x=>x.url&&!tried.has(x.url));
+  const onFail=()=>{
+    if(next){
+      setLoading('⚠ '+c.title+' ใช้ไม่ได้ → ลองช่องถัดไป...');
+      const btns=[...document.getElementById('fblchannels').querySelectorAll('button')];
+      btns.forEach(x=>x.classList.remove('cur'));
+      const i=FBL_CH.indexOf(next);
+      if(btns[i]){btns[i].classList.add('cur');btns[i].scrollIntoView({block:'nearest'});}
+      fblPlay(next,tried);
+    }else{setLoading('');setMode('✖ สตรีมทุกช่องใช้ไม่ได้');}
+  };
+  play(src,ref,onFail);
 }
 renderHRows();hitBrowse();
 renderMRows();renderSRows();
