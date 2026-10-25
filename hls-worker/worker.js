@@ -1,6 +1,6 @@
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 
-const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS' };
+const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' };
 const jerr = (error, status = 400) =>
   new Response(JSON.stringify({ error }), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
@@ -14,13 +14,22 @@ export default {
     if (referer && !/^https?:\/\//i.test(referer)) return jerr('bad ref');
     let r;
     try {
+      const isPost = req.method === 'POST';
       r = await fetch(target, {
+        method: req.method,
         redirect: 'follow',
         signal: AbortSignal.timeout(25000),
-        headers: { 'User-Agent': UA, 'Accept': '*/*', ...(referer ? { Referer: referer } : {}) }
+        headers: { 'User-Agent': UA, 'Accept': '*/*', ...(referer ? { Referer: referer } : {}), ...(isPost ? { 'Content-Type': req.headers.get('content-type') || 'application/json', 'Origin': new URL(target).origin } : {}) },
+        body: isPost ? await req.text() : undefined
       });
     } catch (e) {
       return jerr(String(e.message || e).slice(0, 120), 502);
+    }
+    if (req.method === 'POST') {
+      return new Response(await r.text(), {
+        status: r.status,
+        headers: { ...CORS, 'Content-Type': r.headers.get('content-type') || 'application/json' }
+      });
     }
     if (!r.ok) return jerr('upstream ' + r.status, r.status);
     const ct = (r.headers.get('content-type') || '').toLowerCase();

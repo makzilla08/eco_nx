@@ -83,20 +83,19 @@ function signBlob(clSrc, blob) {
   });
 }
 
+const RELAY = 'https://nx-hls.hls-worker.workers.dev?url=' + encodeURIComponent(BASE + '/api/c/r');
+
 async function resolveChannels(clSrc, blob) {
   const signed = await signBlob(clSrc, blob);
-  const r = await fetch(BASE + '/api/c/r', {
+  // Vercel IP ถูก liveball block ที่ /api/c/r → relay ผ่าน Cloudflare Worker
+  const r = await fetch(RELAY, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'User-Agent': UA, 'Referer': REF, 'Origin': BASE },
+    headers: { 'Content-Type': 'application/json' },
     body: signed.body,
-    signal: AbortSignal.timeout(12000),
+    signal: AbortSignal.timeout(15000),
   });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok || !j.d) {
-    let payload = '';
-    try { payload = Buffer.from(JSON.parse(signed.body).t.split('.')[0], 'base64url').toString(); } catch (e) {}
-    throw new Error((j.e || 'http ' + r.status) + ' | payload ' + payload.slice(0, 200));
-  }
+  if (!r.ok || !j.d) throw new Error(j.e || ('resolve http ' + r.status));
   const url = Buffer.from(j.d, 'base64').toString();
   let title = 'Liveball';
   try {
@@ -182,18 +181,6 @@ export default async function handler(req, res) {
       const data = { id, src: 'liveball', channels };
       _cache.set(id, { at: Date.now(), data });
       return res.status(200).json(data);
-    }
-
-    if (action === 'ping') {
-      // DEBUG: post a pre-signed body (t,f) from this server's IP
-      const body = req.query.tf ? decodeURIComponent(req.query.tf) : '';
-      const r = await fetch(BASE + '/api/c/r', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'User-Agent': UA, 'Referer': REF, 'Origin': BASE },
-        body, signal: AbortSignal.timeout(12000),
-      });
-      const t = await r.text();
-      return res.status(200).json({ status: r.status, resp: t.slice(0, 300) });
     }
 
     return res.status(400).json({ error: 'unknown action' });
