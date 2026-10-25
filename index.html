@@ -268,14 +268,16 @@ function buildQSel(h,levels,cur){
 }
 const HLS_PROXY='https://nx-hls.hls-worker.workers.dev';
 function proxied(src,ref){return HLS_PROXY+'?url='+encodeURIComponent(src)+(ref?('&ref='+encodeURIComponent(ref)):'');}
-function play(src,ref,onFail){
+function play(src,ref,onFail,forceProxy){
   document.getElementById('yt').style.display='none';const v=document.getElementById('v');v.style.display='block';
   if(window._hls){try{window._hls.destroy()}catch(e){}window._hls=null}
   v.pause();v.removeAttribute('src');v.load();
   document.getElementById('qsel').innerHTML='';
   let failed=false;const fail=()=>{if(failed)return;failed=true;onFail&&onFail();};
   const tryPlay=()=>v.play().catch(()=>{});
+  const start=forceProxy?proxied(src,ref):src;
   if(src.includes('.m3u8')&&window.Hls&&Hls.isSupported()){const h=new Hls();window._hls=h;
+    h._viaProxy=!!forceProxy;
     h.on(Hls.Events.ERROR,(ev,data)=>{
       if(!data.fatal)return;
       if(data.type==='networkError'&&!h._viaProxy){
@@ -295,13 +297,13 @@ function play(src,ref,onFail){
       buildQSel(h,lv,pick);
       tryPlay();
     });
-    setMode('▶ ตรง (ไม่เปลืองโควต้า)');
-    h.loadSource(src);
+    setMode(forceProxy?'▶ ผ่าน server (เปลืองโควต้า)':'▶ ตรง (ไม่เปลืองโควต้า)');
+    h.loadSource(start);
     h.attachMedia(v);tryPlay();}
   else if(src.includes('.m3u8')){
-    v._viaProxy=false;setMode('▶ ตรง (ไม่เปลืองโควต้า)');
+    v._viaProxy=!!forceProxy;setMode(forceProxy?'▶ ผ่าน server (เปลืองโควต้า)':'▶ ตรง (ไม่เปลืองโควต้า)');
     v.onerror=()=>{if(!v._viaProxy){v._viaProxy=true;setMode('▶ ผ่าน server (เปลืองโควต้า)');v.src=proxied(src,ref);v.play().catch(()=>{});}else fail();};
-    v.src=src;v.play().catch(()=>{});}
+    v.src=start;v.play().catch(()=>{});}
   else{document.getElementById('qrow').style.display='none';v.src=src;v.play().catch(()=>{});}
 }
 function playYT(id){document.getElementById('v').style.display='none';const f=document.getElementById('yt');f.style.display='block';f.src='https://www.youtube.com/embed/'+id+'?autoplay=1&rel=0';}
@@ -1236,7 +1238,7 @@ function fblPlay(c,tried){
       fblPlay(next,tried);
     }else{setLoading('');setMode('✖ สตรีมทุกช่องใช้ไม่ได้');}
   };
-  play(src,ref,onFail);
+  play(src,ref,onFail,!isLb);
 }
 renderHRows();hitBrowse();
 renderMRows();renderSRows();
