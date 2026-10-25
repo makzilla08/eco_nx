@@ -220,8 +220,12 @@ const JCACHE=new Map();
 async function getJSON(url){
   const c=JCACHE.get(url);
   if(c&&Date.now()-c.t<60000)return c.v;
-  const r=await fetch(url);
-  if(!r.ok)throw new Error('server '+r.status);
+  let r=null;
+  for(let i=0;i<2;i++){
+    try{r=await fetch(url);if(r.ok)break;}catch(e){}
+    if(i===0)await new Promise(s=>setTimeout(s,1500));
+  }
+  if(!r||!r.ok)throw new Error('server '+(r?r.status:'net'));
   const v=await r.json();
   JCACHE.set(url,{t:Date.now(),v});
   return v;
