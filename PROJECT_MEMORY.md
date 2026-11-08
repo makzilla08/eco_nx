@@ -1,5 +1,18 @@
 # eco_nx — Project Memory
 
+## 2026-11-09 — 🔋 ย้าย playlist + metadata ไป CF worker (Vercel เหลือ ~0 bandwidth) — `b7a3630`
+- **บริบท**: user ถามว่าเล่นทั้งหมดแบบ "ไม่เปลืองโควตา" ได้ไหม → ตรวจโค้ดแล้วพบว่าวิดีโอ**ไม่เคยไหลผ่าน Vercel** อยู่แล้ว: `proxied()` ชี้ `https://nx-hls.hls-worker.workers.dev` ตัวเดียว แต่ยังเหลือ 2 ทางที่กิน Vercel: (1) `/api/fetch` สำหรับ HTML/JSON ทุกหน้า (2) `/api/hls?direct=1` ของ soccerfull
+- **worker v `51c0f09d`**: เพิ่ม `direct=1` (playlist ผ่าน worker แต่ segment ชี้ CDN ต้นทางตรง) + HTML/JSON ตอบ `Cache-Control: no-store` (ของเดิม max-age=3600 ทำให้รายการค้าง) · segment/ไบนารียัง cache 1 ชม.
+- **index.html**: `HLS_PROXY` ย้ายขึ้นบนสุด · `viaServer()`/`pPost()` ยิง worker ก่อน → fallback `/api/fetch` · soccerfull เปลี่ยนเป็น `proxied(...)+'&direct=1'` (ไม่ใช้ `/api/hls` แล้ว — ไฟล์ยังเก็บไว้) · ป้ายโหมดเปลี่ยน "▶ ผ่าน server (เปลืองโควต้า)" → "▶ ผ่าน worker (ฟรี bandwidth)"
+- **วัดจริงบน production** (Playwright + `/usr/bin/google-chrome`, headless):
+  - 037HD `watch/movies/17740` → 1920×1080, t=22.3s, ready=4 · reqs 41 = worker 39 + vercel 2 (หน้าเว็บเอง)
+  - hit-anime `hotel-inhumans` → 1920×1080, t=47.3s · reqs 8 = worker ทั้งหมด
+  - 14K `#k14browse` การ์ดแรก → 1280×720, t=17.9s · worker 60 req/18s (~3.3/s)
+  - worker endpoints: playlist direct=1 คง URL ต้นทาง ✓ · proxied rewrite ✓ · HTML 200 + no-store ✓ · POST relay GraphQL ✓
+- **เพดานโควตา**: worker ฟรี 100k req/วัน, ไม่คิด bandwidth → ดูได้ ~8–15 ชม./วัน (แล้วแต่ segment) · ถ้าเกิน/แชร์คนเยอะ → Workers Paid $5 (10M req/วัน)
+- **เจอของพังใหม่ (ไม่เกี่ยวกับที่แก้)**: **soccerfull ตาย** — หน้า `/play/{sid}` เปลี่ยนจาก HLS ตรงเป็น iframe `hgcloud.to/e/xxxx` แล้ว, `/hls/{sid}.m3u8` = 404/403 ทุก sid (ยิงตรงไม่ผ่าน proxy ก็โดน) → แท็บ ⚽ ฟุตบอลย้อนหลังเล่นไม่ได้ ต้องเขียน resolver ใหม่สำหรับ hgcloud
+- **หมายเหตุ**: `/api/football*`, `/api/sites`, `/api/movies` ยังอยู่บน Vercel (ตัว parse) — คืน JSON เล็ก กินแค่ invocation ไม่ใช่ bandwidth
+
 ## 2026-10-17 — fixes หลัก
 - `0a00c5e` 037: segment อยู่ `hls.steamhls2.com` (ซ่อนนามสกุล .jpg) ต้อง `Referer: https://037hd.com/` ไม่งั้น 403 — ตั้ง ref ใน `playableFromO37Links/resolve037/resolveTicket/resolveO37Episode` → HoTD SS2 EP2 เล่นได้ 1280x720
 - `1f723e4` + `779c744` hit-anime: ตรวจ slug page เป็น series; team-indy ติด Cloudflare → สร้าง HLS ตรงจาก embed ID `https://hls.animeindy.com:8443/vid/{ID}/video.mp4/playlist.m3u8` (CORS `*`) = เล่นใน player เรา ไม่มีโฆษณา
