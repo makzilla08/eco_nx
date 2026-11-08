@@ -4,12 +4,16 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods
 const jerr = (error, status = 400) =>
   new Response(JSON.stringify({ error }), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
+const texty = ct => ct.includes('text/html') || ct.includes('json') || ct.includes('text/plain') || ct.includes('xml');
+
 export default {
   async fetch(req) {
     if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
     const u = new URL(req.url);
     const target = u.searchParams.get('url');
     const referer = u.searchParams.get('ref') || '';
+    // direct=1 → เก็บ URL segment เดิมไว้ (CDN ต้นทางส่ง CORS * → browser ดึงตรง ไม่กิน request ของ worker)
+    const direct = u.searchParams.get('direct') === '1';
     if (!target || !/^https?:\/\//i.test(target)) return jerr('need ?url=https://...');
     if (referer && !/^https?:\/\//i.test(referer)) return jerr('bad ref');
     let r;
@@ -37,20 +41,31 @@ export default {
     const head = new TextDecoder().decode(buf.slice(0, 7));
     const isPlaylist = ct.includes('mpegurl') || ct.includes('m3u8') || head === '#EXTM3U';
     if (!isPlaylist) {
+      // HTML/JSON = ข้อมูลสด (รายการ/ตอน) ห้าม cache ค้าง 1 ชม. · segment/ไบนารี cache ได้
       return new Response(buf, {
-        headers: { ...CORS, 'Content-Type': r.headers.get('content-type') || 'application/octet-stream', 'Cache-Control': 'public, max-age=3600' }
+        headers: { ...CORS, 'Content-Type': r.headers.get('content-type') || 'application/octet-stream', 'Cache-Control': texty(ct) ? 'no-store' : 'public, max-age=3600' }
       });
     }
     const base = new URL(target);
     const self = u.origin + u.pathname;
     const prox = x => self + '?url=' + encodeURIComponent(new URL(x, base).href) + (referer ? '&ref=' + encodeURIComponent(referer) : '');
     let text = new TextDecoder().decode(buf);
-    text = text.replace(/URI="([^"]+)"/g, (_, x) => 'URI="' + prox(x) + '"');
-    text = text.split('\n').map(line => {
-      const t = line.trim();
-      if (!t || t.startsWith('#')) return line;
-      return prox(t);
-    }).join('\n');
+    if (direct) {
+      // playlist ผ่าน worker แต่ segment ชี้ CDN ต้นทางตรง ๆ
+      text = text.replace(/URI="([^"]+)"/g, (_, x) => 'URI="' + new URL(x, base).href + '"');
+      text = text.split('\n').map(line => {
+        const t = line.trim();
+        if (!t || t.startsWith('#')) return line;
+        return new URL(t, base).href;
+      }).join('\n');
+    } else {
+      text = text.replace(/URI="([^"]+)"/g, (_, x) => 'URI="' + prox(x) + '"');
+      text = text.split('\n').map(line => {
+        const t = line.trim();
+        if (!t || t.startsWith('#')) return line;
+        return prox(t);
+      }).join('\n');
+    }
     return new Response(text, {
       headers: { ...CORS, 'Content-Type': 'application/vnd.apple.mpegurl', 'Cache-Control': 'no-cache' }
     });

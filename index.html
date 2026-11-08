@@ -205,6 +205,7 @@ h3{margin:18px 0 4px}footer{font-size:12px;margin:24px 0;text-align:center;color
 <footer>eco_nx • Vercel + Cloudflare Worker • ดูบนมือถือ / Smart TV ได้ • ข้อมูลจากเว็บฟรี</footer>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
 <script>
+const HLS_PROXY='https://nx-hls.hls-worker.workers.dev';
 const PROXIES=[{p:'https://api.allorigins.win/raw?url=',e:1}];
 function customProxy(){const u=(localStorage.getItem('nx_proxy')||'').trim();return u?[{p:u,e:0}]:[];}
 function chain(){return customProxy().concat(PROXIES);}
@@ -224,7 +225,13 @@ async function getJSON(url){
 }
 const u=()=>document.getElementById('u').value.trim();
 async function viaServer(url,opt,ref){
-  const r=await fetch('/api/fetch?url='+encodeURIComponent(url)+(ref?('&ref='+encodeURIComponent(ref)):''),{signal:(opt||{}).signal});
+  const sig=(opt||{}).signal;
+  // worker ก่อน (ไม่คิด bandwidth / ไม่กินโควตา Vercel) → ค่อย fallback ไป /api/fetch
+  try{
+    const rw=await fetch(proxied(url,ref),{signal:sig});
+    if(rw.ok)return rw;
+  }catch(e){}
+  const r=await fetch('/api/fetch?url='+encodeURIComponent(url)+(ref?('&ref='+encodeURIComponent(ref)):''),{signal:sig});
   if(!r.ok)throw new Error('server '+r.status);
   return r;
 }
@@ -234,6 +241,10 @@ async function pFetch(url,opt,ref){let last='?';
   for(const px of chain()){const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),8000);try{const r=await fetch(px.p+(px.e?encodeURIComponent(url):url),{...(opt||{}),signal:ctl.signal});clearTimeout(to);if(r.ok)return r;last='proxy '+r.status;}catch(e){clearTimeout(to);last=(e.name==='AbortError')?'timeout':e.message;}}throw new Error('โหลดไม่ได้ (proxy ล่มหมด: '+last+')');}
 async function pGet(url,ref){return(await pFetch(url,undefined,ref)).text();}
 async function pPost(url,body,headers,ref){
+  try{
+    const rw=await fetch(proxied(url,ref),{method:'POST',headers:{'Content-Type':'application/json'},body});
+    if(rw.ok)return await rw.json();
+  }catch(e){}
   try{
     const r=await fetch('/api/fetch?url='+encodeURIComponent(url)+(ref?('&ref='+encodeURIComponent(ref)):'')+'&post=1',{method:'POST',headers:{'Content-Type':'application/json'},body});
     if(r.ok)return await r.json();
@@ -258,7 +269,6 @@ function buildQSel(h,levels,cur){
     if(i===cur)o.selected=true;sel.appendChild(o);});
   sel.onchange=()=>{h.currentLevel=+sel.value;};
 }
-const HLS_PROXY='https://nx-hls.hls-worker.workers.dev';
 function proxied(src,ref){return HLS_PROXY+'?url='+encodeURIComponent(src)+(ref?('&ref='+encodeURIComponent(ref)):'');}
 function play(src,ref,onFail,forceProxy){
   document.getElementById('yt').style.display='none';const v=document.getElementById('v');v.style.display='block';
@@ -277,7 +287,7 @@ function play(src,ref,onFail,forceProxy){
     h.on(Hls.Events.ERROR,(ev,data)=>{
       if(!data.fatal)return;
       if(data.type==='networkError'&&!h._viaProxy){
-        h._viaProxy=true;setMode('▶ ผ่าน server (เปลืองโควต้า)');
+        h._viaProxy=true;setMode('▶ ผ่าน worker (ฟรี bandwidth)');
         h.loadSource(proxied(src,ref));
         tryPlay();
       }else if(data.type==='mediaError'&&!h._mediaRec){
@@ -293,12 +303,12 @@ function play(src,ref,onFail,forceProxy){
       buildQSel(h,lv,pick);
       tryPlay();
     });
-    setMode(forceProxy?'▶ ผ่าน server (เปลืองโควต้า)':'▶ ตรง (ไม่เปลืองโควต้า)');
+    setMode(forceProxy?'▶ ผ่าน worker (ฟรี bandwidth)':'▶ ตรง (ไม่เปลืองโควต้า)');
     h.loadSource(start);
     h.attachMedia(v);tryPlay();}
   else if(src.includes('.m3u8')){
-    v._viaProxy=!!forceProxy;setMode(forceProxy?'▶ ผ่าน server (เปลืองโควต้า)':'▶ ตรง (ไม่เปลืองโควต้า)');
-    v.onerror=()=>{if(!v._viaProxy){v._viaProxy=true;setMode('▶ ผ่าน server (เปลืองโควต้า)');v.src=proxied(src,ref);v.play().catch(()=>{});}else fail();};
+    v._viaProxy=!!forceProxy;setMode(forceProxy?'▶ ผ่าน worker (ฟรี bandwidth)':'▶ ตรง (ไม่เปลืองโควต้า)');
+    v.onerror=()=>{if(!v._viaProxy){v._viaProxy=true;setMode('▶ ผ่าน worker (ฟรี bandwidth)');v.src=proxied(src,ref);v.play().catch(()=>{});}else fail();};
     v.src=start;v.play().catch(()=>{});}
   else{document.getElementById('qrow').style.display='none';v.src=src;v.play().catch(()=>{});}
 }
@@ -1199,7 +1209,7 @@ async function fbOpen(m){
   }catch(e){parts.innerHTML='<p class="note">โหลดไม่ได้: '+fbEsc(e.message.slice(0,90))+'</p>';}
 }
 function fbPlay(p,m){
-  const src='/api/hls?url='+encodeURIComponent('https://soccerfull.net/hls/'+p.sid+'.m3u8')+'&direct=1';
+  const src=proxied('https://soccerfull.net/hls/'+p.sid+'.m3u8',FB_REF)+'&direct=1';
   document.getElementById('u').value=m.url;
   setNow(m.title+' — '+p.label,-1);
   setLoading('⏳ กำลังโหลดสตรีม...');
