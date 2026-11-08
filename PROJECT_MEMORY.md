@@ -30,5 +30,28 @@
 - ข้อสังเกต: playlist บางอันมี PTS offset (currentTime เริ่ม ~3891s) — อาจเริ่มกลางเกม เช็คก่อนใช้งานจริง
 - ยังค้าง: ลบ repo `makzilla08/nx` (รอ scope `delete_repo` — ต้อง authorize ผ่าน github.com/login/device)
 
+## 2026-10-25 — ⚽ แท็บ "📡 ดูบอลสด" (dooball + liveball) — เสร็จ 90% ค้าง dooball playback
+- **แหล่ง 2 ตัว merge ด้วย `Promise.allSettled` → 148 การ์ด** (131 dooball + 17 liveball) — whitelist 5 ลีก (Premier League/Bundesliga/La Liga/Ligue 1/Champions League — ยังไม่ฟิลเตอร์เฉพาะอังกฤษ)
+- **dooball**: GraphQL `api4.xn--72czaud0ezbn4b8de.com/graphql` (POST `sportEvents`, `channels` = scalar JSON, introspection ปิด) → `api/football-live.js`
+- **liveball**: `api/liveball.js` — sign blob `_xrq` ด้วย HMAC จาก cl.min.js (รันใน node vm, cache cl.min.js 6 ชม./detail 5 นาที) → **PLAYBACK VERIFIED บน production** (Атлетик vs Хетафе → fut2 → 1280x720)
+- **Vercel ถูก liveball block `{"e":"auth"}` ที่ POST `/api/c/r`** (พิสูจน์ด้วย debug ping: TH-signed token จาก IP Vercel → 403, หน้า list/detail ไม่โดน) → **แก้ด้วย CF worker relay** (`nx-hls.hls-worker.workers.dev?url=...` forward POST+headers, return raw response เฉพาะ POST) — deploy แล้ว (worker v ff240a37)
+- **โค้ด player**: `play(src,ref,onFail,forceProxy)` — fatal network → proxy retry, mediaError → recover 1 ครั้ง, หมด → `FBL_CH` fallback ช่องถัดไป → "✖ สตรีมทุกช่องใช้ไม่ได้" · `getJSON` retry ครั้งเดียวหลัง 1.5s — **fallback chain verified บน production**
+- **dooball ยังเล่นไม่ได้ — สาเหตุย่อย 3 ชั้น (วิเคราะห์วันนี้)**:
+  1. direct 403 = origin เช็ค `Referer: https://www.dooball-doonang.com/` แต่ hls.js ตั้ง Referer ไม่ได้ → **forceProxy: dooball เริ่มผ่าน worker ตั้งแต่แรก** (`!isLb` → push แล้ว)
+  2. ผ่าน worker: playlist/chunks 200 แต่ `.ts` → ERR_ABORTED ทุกครั้ง
+  3. **คอขวดจริง = segment ช้า**: direct chain จาก local (Chrome UA + ref, IP เดียว) = playlist 200 → chunks 200 → seg **200 แต่ใช้ 23 วิ/500KB** → เกิน hls.js frag timeout 20s → abort ก่อนโหลดเสร็จ · chunks.m3u8 ผ่าน worker บางครั้ง 403 (สงสัย session ผูก IP egress ที่ไม่คงที่ของ CF)
+- FINISHED matches มี URL/DNS เก่า (upstream ปกติ — sign วันเก่า + NXDOMAIN, LIVE มี sign สด) · stream host หมุน subdomain random `*.sbs`
+- **ค้าง (ทำต่อ session หน้า)**: (1) raise hls.js frag loadPolicy timeout >30s + วัด .ts ผ่าน worker, (2) retest dooball LIVE บน production, (3) ถ้า IP-binding จริง → พิจารณา proxy ทั้ง chain ฝั่ง Vercel แทน worker
+- หมายเหตุ: ป้ายโหมด "▶ ตรง / ▶ ผ่าน server (เปลืองโควต้า)" = บอกสถานะเฉย ๆ — liveball เล่นตรงได้ (CORS *) ไม่บังคับ proxy, แท็บย้อนหลัง soccerfull คนละแท็บยังผ่าน `/api/hls` เดิม
+
 ## ค้าง
-- (ว่าง — งานทั้งหมดเสร็จ)
+- dooball LIVE playback: fix segment timeout + retest (ดูหัวข้อ 2026-10-25 ข้อ 3)
+
+## 2026-11-04 — 📱 แอปมือถือ Android (WebView wrapper) — `~/android-dev/EcoNx`
+- ไม่ได้แก้เว็บเลย: ทำ APK ห่อ live site (`https://econx-three.vercel.app/`) ด้วย WebView — โค้ด `MainActivity.java` ไฟล์เดียว, ไม่มี dependency, R8+shrinkResources → **APK 20.8 KB**
+- ดีไซน์ onyx-ember (ดำหิน #08070A + ember #FF6B35): splash/ไอคอน vector, progress 2dp, หน้า error/offline, ปุ่ม EmberButton + ฉีด `SKIN_CSS` เปลี่ยนสีหน้าเว็บเฉพาะในแอป (น้ำเงิน #1f6feb → ember, พาเนลกรม → onyx; guard id `econx-skin` กันซ้ำ) — เว็บบนเบราว์เซอร์ยังเป็นธีมเดิม
+- แนวตั้ง/แนวนอน: `configChanges` กัน activity recreate → วิดีโอไม่หลุดตอนหมุน; inset ใช้ `WindowInsets` (แนวตั้งกันติ่ง, แนวนอนใช้เต็มความกว้างเพราะ inset ติ่งข้างทำให้เกิดแถบดำ ~190px)
+- fullscreen วิดีโอผ่าน `onShowCustomView` + immersive; back ออกจาก fullscreen ก่อน แล้วจึง goBack เว็บ
+- วัดจริง (emulator t35, Android 15): app PSS ~63 MB; แนวตั้ง/แนวนอน/สกรีนช็อตยืนยันครบ
+- APK: `~/android-dev/EcoNx/dist/EcoNx-1.0.apk` (เซ็น v2 ด้วย `app/keystore/econx.jks`) · รายละเอียด/กับดัก → `~/android-dev/EcoNx/AGENTS.md`
+- กับดัก: อีมูเลเตอร์ตัวนี้ crash SIGSEGV ตอนสลับ surface (swiftshader/lavapipe) — อย่าตีความว่าแอปพัง

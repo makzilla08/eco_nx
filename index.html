@@ -342,18 +342,19 @@ async function resolve037(pageUrl){
       const thtml=await pGet(turl);
       const cfg=thtml.match(/embedId:\s*"([^"]+)"[\s\S]{0,600}?sessionUrl:\s*"([^"]+)"/);
       if(!cfg)continue;
-      const sess=JSON.parse(await pGet(apiHost+cfg[2]));
+      const pref=apiHost+'/';               // streamhls เช็ค Referer ต้องเป็น origin ของ player เอง (037hd ไม่ผ่านแล้ว)
+      const sess=JSON.parse(await pGet(apiHost+cfg[2],pref));
       const gate=sess?.ad_gate?.gate_token;
       const srcs=(sess?.sources||[]).filter(x=>x.playback_mode!=='iframe');
       if(!gate||!srcs.length)continue;
       for(const sc of srcs){
         try{
           const pb=await pPost(apiHost+'/api/player/'+cfg[1]+'/playback'+cfg[2].slice(cfg[2].indexOf('?')),
-            JSON.stringify({source_id:sc.id,gate_token:gate}),{'Content-Type':'application/json'});
+            JSON.stringify({source_id:sc.id,gate_token:gate}),{'Content-Type':'application/json'},pref);
           if(!pb?.embed_url)continue;
-          const ehtml=await pGet(apiHost+pb.embed_url);
+          const ehtml=await pGet(apiHost+pb.embed_url,pref);
           const mu=findM3U8(ehtml);
-          if(mu)return{src:mu.startsWith('http')?mu:apiHost+mu,ref:'https://037hd.com/',label:sess.title+' '+sc.label};
+          if(mu)return{src:mu.startsWith('http')?mu:apiHost+mu,ref:pref,proxy:true,label:sess.title+' '+sc.label};
         }catch(e){}
       }
     }catch(e){}
@@ -372,18 +373,18 @@ async function resolveTicket(turl){
   if(!cfg)throw new Error('no-ticket');
   const apiHost=await ticketApiHost(turl,thtml);
   if(!apiHost)throw new Error('no-ticket');
-  const sess=JSON.parse(await pGet(apiHost+cfg[2]));
+  const sess=JSON.parse(await pGet(apiHost+cfg[2],apiHost+'/'));
   const gate=sess?.ad_gate?.gate_token;
   const srcs=(sess?.sources||[]).filter(x=>x.playback_mode!=='iframe');
   if(!gate||!srcs.length)throw new Error('no-ticket');
   for(const sc of srcs){
     try{
       const pb=await pPost(apiHost+'/api/player/'+cfg[1]+'/playback'+cfg[2].slice(cfg[2].indexOf('?')),
-        JSON.stringify({source_id:sc.id,gate_token:gate}),{'Content-Type':'application/json'});
+        JSON.stringify({source_id:sc.id,gate_token:gate}),{'Content-Type':'application/json'},apiHost+'/');
       if(!pb?.embed_url)continue;
-      const ehtml=await pGet(apiHost+pb.embed_url);
+      const ehtml=await pGet(apiHost+pb.embed_url,apiHost+'/');
       const mu=findM3U8(ehtml);
-      if(mu)return{src:mu.startsWith('http')?mu:apiHost+mu,ref:'https://037hd.com/',label:(sess.title||'')+' '+sc.label};
+      if(mu)return{src:mu.startsWith('http')?mu:apiHost+mu,ref:apiHost+'/',proxy:true,label:(sess.title||'')+' '+sc.label};
     }catch(e){}
   }
   throw new Error('no-ticket');
@@ -393,24 +394,25 @@ async function playableFromO37Links(links){
   const sorted=[...links].sort((a,b)=>((a.link_type==='dub')?0:1)-((b.link_type==='dub')?0:1));
   for(const L of sorted){
     try{
-      const ehtml=await pGet(L.embed_url);
       const origin=new URL(L.embed_url).origin;
+      const pref=origin+'/';   // player host อนุญาตเฉพาะ Referer ของตัวเอง (037hd/037-hdd โดน REFERER_NOT_ALLOWED)
+      const ehtml=await pGet(L.embed_url,pref);
       const sm=ehtml.match(/sessionUrl:\s*"([^"]+)"|data-session-url="([^"]+)"/);
       const pm=ehtml.match(/playbackUrl:\s*"([^"]+)"|data-playback-url="([^"]+)"/);
       if(!sm||!pm)continue;
-      const sess=JSON.parse(await pGet(origin+(sm[1]||sm[2])));
+      const sess=JSON.parse(await pGet(origin+(sm[1]||sm[2]),pref));
       const gate=sess?.ad_gate?.gate_token;
       const srcs=sess?.sources||[];
       if(!gate||!srcs.length)continue;
       for(const sc of srcs){
         try{
           const pb=await pPost(origin+(pm[1]||pm[2]),
-            JSON.stringify({source_id:sc.id,gate_token:gate}),{'Content-Type':'application/json'});
+            JSON.stringify({source_id:sc.id,gate_token:gate}),{'Content-Type':'application/json'},pref);
           if(!pb?.embed_url)continue;
           const surl=pb.embed_url.startsWith('http')?pb.embed_url:origin+pb.embed_url;
-          const shtml=await pGet(surl);
+          const shtml=await pGet(surl,pref);
           const mu=findM3U8(shtml);
-          if(mu)return{src:mu.startsWith('http')?mu:new URL(surl).origin+mu,ref:'https://037hd.com/',label:(sess.title||'')+' '+(sc.label||'')};
+          if(mu)return{src:mu.startsWith('http')?mu:new URL(surl).origin+mu,ref:pref,proxy:true,label:(sess.title||'')+' '+(sc.label||'')};
         }catch(e){}
       }
     }catch(e){}
@@ -437,7 +439,7 @@ async function resolveO37Episode(seriesId,epDbId,epNum,title,idx){
   setLoading('⏳ กำลังโหลด '+label+' …');
   try{
     const j=await fetchO37Stream(seriesId,epDbId);
-    play(j.src,j.ref||'');LAST_DIRECT=j.src;
+    play(j.src,j.ref||'',null,j.proxy);LAST_DIRECT=j.src;
     document.getElementById('directbox').style.display='flex';
     document.getElementById('directurl').textContent=j.src.slice(0,70)+'…';
     setNow(label,keep);
@@ -463,9 +465,10 @@ async function resolveUrl(pageUrl){
   if(/037hddd\.com\/watch\//.test(pageUrl)){try{return await resolveO37Watch(pageUrl);}catch(e){if(e.message!=='no-o37')throw e;}}
   if(pageUrl.includes('streamhls_ticket=1')){try{return await resolveTicket(pageUrl);}catch(e){if(e.message!=='no-ticket')throw e;}}
   if(/\/player\/source\/v1\./.test(pageUrl)){
-    const ehtml=await pGet(pageUrl);
+    const pref=new URL(pageUrl).origin+'/';
+    const ehtml=await pGet(pageUrl,pref);
     const mu=ehtml.match(/"(\/sources\/[^"]+?master\.m3u8\?[^"]+)"/);
-    if(mu){const host=new URL(pageUrl).origin;return{src:host+mu[1]};}
+    if(mu){const host=new URL(pageUrl).origin;return{src:host+mu[1],ref:pref,proxy:true};}
   }
   if(/qplay\.xyz\/play\/view\.php/.test(pageUrl)){
     const dd=await scanDrive(await pGet(pageUrl));if(dd)return dd;
@@ -503,7 +506,7 @@ async function resolve(){
       document.getElementById('directbox').style.display='flex';
       document.getElementById('directurl').textContent=j.embed.slice(0,70)+'…';}
     else{let ref='';try{ref=j.ref||new URL(j.src).origin}catch(e){}
-      play(j.src,ref);LAST_DIRECT=j.src;
+      play(j.src,ref,null,j.proxy);LAST_DIRECT=j.src;
       document.getElementById('directbox').style.display='flex';
       document.getElementById('directurl').textContent=j.src.slice(0,70)+'…';}
     if(!CUR.label||CUR.idx<0&&!EP.length)setNow(u(),-1);
