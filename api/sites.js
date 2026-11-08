@@ -26,14 +26,15 @@ function decodeEnt(s) {
     .replace(/&(amp|lt|gt|quot|apos|nbsp);/g, (_, n) => ({ amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' }[n]));
 }
 
-async function fetchHtml(url) {
+async function fetchHtml(url, ms) {
+  const timeout = ms || 6000;
   const tries = [url,
     'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
     'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
     'https://corsproxy.io/?url=' + encodeURIComponent(url)];
   const race = tries.map(u => (async () => {
     const ctl = new AbortController();
-    const to = setTimeout(() => ctl.abort(), 6000);
+    const to = setTimeout(() => ctl.abort(), timeout);
     try {
       const r = await fetch(u, { signal: ctl.signal, redirect: 'follow', headers: { 'User-Agent': UA, 'Accept': 'text/html,*/*', 'Accept-Language': 'th-TH,th;q=0.9,en;q=0.8' } });
       clearTimeout(to);
@@ -48,6 +49,21 @@ async function fetchHtml(url) {
   } catch (e) {
     throw new Error(String((e.errors || [e])[0]?.message || e).slice(0, 80));
   }
+}
+
+// ดึงตรงจากต้นทางก่อน (เร็ว/สะอาด) แล้วค่อย fallback ไป proxy สาธารณะ
+async function fetchDirect(url, ms) {
+  const ctl = new AbortController();
+  const to = setTimeout(() => ctl.abort(), ms || 10000);
+  try {
+    const r = await fetch(url, { signal: ctl.signal, redirect: 'follow', headers: { 'User-Agent': UA, 'Accept': 'text/html,*/*', 'Accept-Language': 'th-TH,th;q=0.9,en;q=0.8' } });
+    if (!r.ok) throw new Error('http ' + r.status);
+    return await r.text();
+  } finally { clearTimeout(to); }
+}
+async function fetchK14(url) {
+  try { return await fetchDirect(url, 12000); }
+  catch { return await fetchHtml(url, 12000); }
 }
 
 function parseHit(html, base) {
@@ -155,10 +171,15 @@ function parse14K(html, base) {
 }
 
 async function search14K(q) {
-  try {
-    const html = await fetchHtml('https://14kmovies.com/search/?keys=' + encodeURIComponent(q));
-    return parse14K(html, 'https://14kmovies.com/').filter(x => /\/movie\//.test(x.url)).slice(0, 12);
-  } catch { return []; }
+  const url = 'https://14kmovies.com/search/?keys=' + encodeURIComponent(q);
+  for (let i = 0; i < 2; i++) {
+    try {
+      const html = await fetchK14(url);
+      const items = parse14K(html, 'https://14kmovies.com/').filter(x => /\/movie\//.test(x.url)).slice(0, 12);
+      if (items.length) return items;
+    } catch { /* retry once */ }
+  }
+  return [];
 }
 
 function maxPage(html) {
@@ -324,7 +345,7 @@ export default async function handler(req, res) {
         if (/[?&]s=/.test(target)) target += (target.includes('paged=') ? '' : (target.includes('?') ? '&' : '?') + 'paged=' + pg);
         else target = target.replace(/\/$/, '') + '/page/' + pg + '/';
       }
-      const html = await fetchHtml(target);
+      const html = await (parser === 'k14' ? fetchK14(target) : fetchHtml(target));
       const totM = parser === 'k14' ? html.match(/ทั้งหมด\s*([\d,]+)\s*เรื่อง/) : null;
       return res.status(200).json({ items: fn(html, u.origin + '/'), totalPages: maxPage(html), total: totM ? +totM[1].replace(/,/g, '') : 0 });
     } catch (e) {

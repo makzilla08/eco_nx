@@ -823,17 +823,49 @@ async function k14Play(url,title){
     const du=document.getElementById('directurl');if(du)du.textContent=j.src.slice(0,70)+'…';
     setNow(title||j.label||'14K',-1);
     const v=document.getElementById('v');if(v)v.scrollIntoView({block:'center'});
-  }catch(e){alert('เล่นไม่ได้: '+e.message);}
+  }catch(e){alert('เล่นไม่ได้: '+(e.message==='no-14k'?'หน้านี้ไม่มีลิงก์วิดีโอตรง (ตัวเล่นภายนอกปิดไว้)':e.message==='nanaplayer'?'เซิร์ฟเวอร์ต้นทางเรื่องนี้ (nanaplayer) ปิดแล้ว ลองเรื่องอื่น':e.message));}
   finally{setLoading('');}
+}
+function k14M3u8(html){
+  const m=html.match(/file:\s*"([^"]+)"/);
+  if(m)return m[1];
+  const u=html.match(/https?:\/\/[^"'\s<>]+\.m3u8[^"'\s<>]*/);
+  return u?u[0]:null;
+}
+function k14EmbedIframe(html){
+  for(const tag of html.match(/<iframe[^>]*>/g)||[]){
+    const sm=tag.match(/src="([^"]+)"/);
+    if(!sm)continue;
+    const src=sm[1];
+    if(/googletagmanager|google-analytics|youtube\.com|facebook|disqus/i.test(src))continue;
+    return src;
+  }
+  return null;
 }
 async function resolve14K(pageUrl){
   const html=await pGet(pageUrl);
-  const m=html.match(/file:\s*"([^"]+)"/)||html.match(/hlsr2\/[a-z0-9]+\/master\.m3u8/);
-  if(!m)throw new Error('no-14k');
-  let src=m[1]||m[0];
-  if(!/^https?:/.test(src))src='https://fastfastcdn.com/'+src;
-  src=src.replace(/&amp;/g,'&');
+  let src=k14M3u8(html);
   const t=(html.match(/<h1 class="movie-title"[^>]*>([^<]*)</)||[])[1]||'';
+  // ตัวเล่นฝังในหน้าไม่มี m3u8 → ตาม chain ของ player ภายนอก (ssplayer168 / fastplayer-cdn → fastcdnv2 → fastfastcdn)
+  if(!src){
+    let cur=k14EmbedIframe(html),ref=pageUrl;
+    for(let depth=0;cur&&depth<3&&!src;depth++){
+      const u=/^https?:/.test(cur)?cur:new URL(cur,ref).href;
+      let h='';
+      try{h=await pGet(u,ref);}catch(e){break;}
+      src=k14M3u8(h);
+      if(src&&!/^https?:/.test(src))src='https://fastfastcdn.com/'+src;
+      if(src)break;
+      const next=k14EmbedIframe(h);
+      if(!next)break;
+      ref=u;cur=next;
+    }
+  }
+  if(!src)throw new Error('no-14k');
+  src=src.replace(/&amp;/g,'&');
+  if(!/^https?:/.test(src))src='https://fastfastcdn.com/'+src;
+  // โฮสต์ nanaplayer ปิด DNS แล้ว (2026-11) → แจ้งเตือนเร็ว ๆ ไม่ต้องรอ player timeout
+  if(/cdn-nanaplayer\.com/i.test(src))throw new Error('nanaplayer');
   return{src,ref:'',proxy:true,label:t};
 }
 async function seriesBrowse(page){
