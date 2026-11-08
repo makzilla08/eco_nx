@@ -439,7 +439,7 @@ async function resolveO37Episode(seriesId,epDbId,epNum,title,idx){
   setLoading('⏳ กำลังโหลด '+label+' …');
   try{
     const j=await fetchO37Stream(seriesId,epDbId);
-    play(j.src,j.ref||'',null,j.proxy);LAST_DIRECT=j.src;
+    play(j.src,j.ref||'',null,j.proxy);LAST_DIRECT=j.proxy?proxied(j.src,j.ref||''):j.src;
     document.getElementById('directbox').style.display='flex';
     document.getElementById('directurl').textContent=j.src.slice(0,70)+'…';
     setNow(label,keep);
@@ -506,7 +506,7 @@ async function resolve(){
       document.getElementById('directbox').style.display='flex';
       document.getElementById('directurl').textContent=j.embed.slice(0,70)+'…';}
     else{let ref='';try{ref=j.ref||new URL(j.src).origin}catch(e){}
-      play(j.src,ref,null,j.proxy);LAST_DIRECT=j.src;
+      play(j.src,ref,null,j.proxy);LAST_DIRECT=j.proxy?proxied(j.src,ref):j.src;
       document.getElementById('directbox').style.display='flex';
       document.getElementById('directurl').textContent=j.src.slice(0,70)+'…';}
     if(!CUR.label||CUR.idx<0&&!EP.length)setNow(u(),-1);
