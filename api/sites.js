@@ -181,17 +181,80 @@ async function searchWP(base, parser, q) {
   } catch { return []; }
 }
 
+function parseYoutube(html) {
+  const marker = html.match(/ytInitialData\s*=\s*/);
+  if (!marker) return [];
+  const start = html.indexOf('{', marker.index + marker[0].length);
+  if (start < 0) return [];
+
+  let depth = 0, quoted = false, escaped = false, end = -1;
+  for (let i = start; i < html.length; i++) {
+    const c = html[i];
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (c === '\\') escaped = true;
+      else if (c === '"') quoted = false;
+      continue;
+    }
+    if (c === '"') quoted = true;
+    else if (c === '{') depth++;
+    else if (c === '}' && --depth === 0) { end = i + 1; break; }
+  }
+  if (end < 0) return [];
+
+  let data;
+  try { data = JSON.parse(html.slice(start, end)); } catch { return []; }
+  const out = [], seen = new Set();
+  function collect(node) {
+    if (out.length >= 12 || !node || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      node.forEach(collect);
+      return;
+    }
+    const video = node.videoRenderer;
+    if (video?.videoId && !seen.has(video.videoId)) {
+      const title = video.title?.runs?.map(run => run.text || '').join('')
+        || video.title?.simpleText || '';
+      if (title) {
+        seen.add(video.videoId);
+        const thumbs = video.thumbnail?.thumbnails || [];
+        const channel = video.ownerText?.runs?.map(run => run.text || '').join('')
+          || video.ownerText?.simpleText || '';
+        out.push({
+          url: 'https://www.youtube.com/watch?v=' + video.videoId,
+          title,
+          cover: thumbs.at(-1)?.url || '',
+          badge: channel,
+          src: 'YouTube'
+        });
+      }
+    }
+    Object.values(node).forEach(collect);
+  }
+  collect(data);
+  return out;
+}
+
+async function searchYoutube(q) {
+  try {
+    const html = await fetchHtml('https://www.youtube.com/results?search_query=' + encodeURIComponent(q));
+    return parseYoutube(html);
+  } catch { return []; }
+}
+
 async function searchAll(req, res, q) {
-  const [o37, hit, sd] = await Promise.all([
+  const [o37, hit, sd, youtube] = await Promise.all([
     searchO37(q),
     searchWP('https://hit-anime.com/', parseHit, q),
-    searchWP('https://seriesdet.com/', parseSeriesdet, q)
+    searchWP('https://seriesdet.com/', parseSeriesdet, q),
+    searchYoutube(q)
   ]);
   return res.status(200).json({
     groups: [
       { site: '037hd', items: o37 },
       { site: 'hit-anime', items: hit },
-      { site: 'seriesdet', items: sd }
+      { site: 'seriesdet', items: sd },
+      { site: 'YouTube', items: youtube }
     ]
   });
 }

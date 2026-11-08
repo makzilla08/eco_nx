@@ -57,7 +57,7 @@ h3{margin:18px 0 4px}footer{font-size:12px;margin:24px 0;text-align:center;color
 <h1>⚡ NX</h1>
 <p>ค้นหาซีรี่ส์ + อนิเมะจากเว็บฟรีทั่วเน็ต แล้วดูแบบไร้โฆษณาในที่เดียว</p>
 <div class="row">
-<input type="text" id="q" placeholder="🔍 ชื่อเรื่อง... (เช่น โลกอันสมบูรณ์แบบ, One Piece)">
+<input type="text" id="q" placeholder="🔍 ค้นหาชื่อเรื่องหรือคลิป YouTube...">
 <button onclick="search()">ค้นหา</button>
 </div>
 <div class="srcs"><span class="note">แหล่งเบื้องหลัง:</span><span class="src" style="cursor:pointer" onclick="jumpSource('anime-hit')">anime-hit</span><span class="src" style="cursor:pointer" onclick="jumpSource('037HD')">037HD</span><span class="src" style="cursor:pointer" onclick="jumpSource('AnimePahe')">AnimePahe</span><span class="src" style="cursor:pointer" onclick="jumpSource('YouTube')">YouTube</span><span class="src" style="cursor:pointer" onclick="jumpSource('+ทั่วเน็ต')">+ทั่วเน็ต</span></div>
@@ -629,7 +629,7 @@ async function search(){
   siteSearch(q);
 }
 async function siteSearch(q){
-  const g=document.getElementById('results');g.innerHTML='<p class="note">🔎 กำลังค้นใน 037hd + hit-anime + seriesdet...</p>';
+  const g=document.getElementById('results');g.innerHTML='<p class="note">🔎 กำลังค้นใน 037hd + hit-anime + seriesdet + YouTube...</p>';
   document.getElementById('webhead').style.display='none';
   document.getElementById('webres').innerHTML='';
   try{
@@ -647,7 +647,7 @@ async function siteSearch(q){
         d.appendChild(im);d.appendChild(t);d.appendChild(s);d.onclick=()=>expandWeb(m.url,m.title);g.appendChild(d);
       });
     });
-    if(!total)g.innerHTML='<p class="note">ไม่เจอใน 4 เว็บ ลองคำอื่น</p>';
+    if(!total)g.innerHTML='<p class="note">ไม่พบผลลัพธ์ ลองคำอื่น</p>';
     g.scrollIntoView();
   }catch(e){g.innerHTML='<p class="note">ค้นหาล้มเหลว: '+e.message.slice(0,80)+'</p>';}
 }
