@@ -120,6 +120,47 @@ function parseO37(html, base) {
   return out;
 }
 
+function parse14K(html, base) {
+  const out = [], seen = new Set();
+  const push = (href, title, img, badge) => {
+    const url = absUrl(href, base);
+    if (!url || seen.has(url)) return;
+    seen.add(url);
+    // ภาพปก: movie788.com/post-img-api บางอัน 404 → ใช้ get-image.php?post_id= (เสถียรกว่า)
+    const idm = url.match(/\/movie\/(\d+)\//);
+    const cover = idm ? 'https://14kmovies.com/get-image.php?post_id=' + idm[1] : (absUrl(img || '', base) || '');
+    out.push({ url, title: decodeEnt((title || '').trim()).replace(/\s*ดูหนังออนไลน์.*$/i, '').trim(), cover, badge: (badge || '').trim(), src: '14kmovies' });
+  };
+  // หน้า browse: <article class="movie-card"> … <a href="/movie/…"> … <img src> … <div class="movie-title">
+  for (const chunk of html.split('<article class="movie-card">').slice(1)) {
+    const href = (chunk.match(/<a href="([^"]+)"/) || [])[1];
+    if (!href) continue;
+    push(href,
+      (chunk.match(/<div class="movie-title">([^<]*)</) || [])[1] || (chunk.match(/<a[^>]+title="([^"]*)"/) || [])[1],
+      (chunk.match(/<img[^>]+src="([^"]+)"/) || [])[1],
+      (chunk.match(/<span class="quality-badge">([^<]*)</) || [])[1]);
+  }
+  // หน้าค้นหา: <a class="kmv-movie-card" href…> … <div class="kmv-movie-title">
+  for (const chunk of html.split('class="kmv-movie-card"').slice(1)) {
+    const href = (chunk.match(/href="([^"]+)"/) || [])[1];
+    if (!href) continue;
+    const end = chunk.indexOf('</a>');
+    const c = end > 0 ? chunk.slice(0, end) : chunk;
+    push(href,
+      (c.match(/<div class="kmv-movie-title">([^<]*)</) || [])[1] || (c.match(/title="([^"]*)"/) || [])[1],
+      (c.match(/<img[^>]+src="([^"]+)"/) || [])[1],
+      (c.match(/<span class="kmv-badge">([^<]*)</) || [])[1]);
+  }
+  return out;
+}
+
+async function search14K(q) {
+  try {
+    const html = await fetchHtml('https://14kmovies.com/search/?keys=' + encodeURIComponent(q));
+    return parse14K(html, 'https://14kmovies.com/').filter(x => /\/movie\//.test(x.url)).slice(0, 12);
+  } catch { return []; }
+}
+
 function maxPage(html) {
   let mx = 1;
   for (const m of html.matchAll(/\/page\/(\d+)\/?["']/g)) {
@@ -243,15 +284,17 @@ async function searchYoutube(q) {
 }
 
 async function searchAll(req, res, q) {
-  const [o37, hit, sd, youtube] = await Promise.all([
+  const [o37, hit, sd, youtube, k14] = await Promise.all([
     searchO37(q),
     searchWP('https://hit-anime.com/', parseHit, q),
     searchWP('https://seriesdet.com/', parseSeriesdet, q),
-    searchYoutube(q)
+    searchYoutube(q),
+    search14K(q)
   ]);
   return res.status(200).json({
     groups: [
       { site: '037hd', items: o37 },
+      { site: '14kmovies', items: k14 },
       { site: 'hit-anime', items: hit },
       { site: 'seriesdet', items: sd },
       { site: 'YouTube', items: youtube }
@@ -268,11 +311,11 @@ export default async function handler(req, res) {
   }
   if (custom) {
     // custom URL browse — only our allowlisted hosts
-    const allow = { 'hit-anime.com': parseHit, 'seriesdet.com': parseSeriesdet, '037hddd.com': parseO37, 'hd.movie285.com': parseM285 };
+    const allow = { 'hit-anime.com': parseHit, 'seriesdet.com': parseSeriesdet, '037hddd.com': parseO37, 'hd.movie285.com': parseM285, '14kmovies.com': parse14K };
     let u;
     try { u = new URL(custom); } catch { return res.status(400).json({ error: 'bad url' }); }
     const host = u.hostname.replace(/^www\./, '');
-    const fn = allow[host] && (parser ? { hit: parseHit, sd: parseSeriesdet, o37: parseO37, m285: parseM285 }[parser] : allow[host]);
+    const fn = allow[host] && (parser ? { hit: parseHit, sd: parseSeriesdet, o37: parseO37, m285: parseM285, k14: parse14K }[parser] : allow[host]);
     if (!fn) return res.status(403).json({ error: 'host not allowed' });
     try {
       const pg = Math.max(1, +page || 1);
@@ -282,7 +325,8 @@ export default async function handler(req, res) {
         else target = target.replace(/\/$/, '') + '/page/' + pg + '/';
       }
       const html = await fetchHtml(target);
-      return res.status(200).json({ items: fn(html, u.origin + '/'), totalPages: maxPage(html) });
+      const totM = parser === 'k14' ? html.match(/ทั้งหมด\s*([\d,]+)\s*เรื่อง/) : null;
+      return res.status(200).json({ items: fn(html, u.origin + '/'), totalPages: maxPage(html), total: totM ? +totM[1].replace(/,/g, '') : 0 });
     } catch (e) {
       return res.status(502).json({ error: String(e.message || e).slice(0, 120) });
     }
