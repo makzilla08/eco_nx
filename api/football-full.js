@@ -134,8 +134,14 @@ const TEAMS = [
   ['manchester-city', '🔵 แมนซิตี้'],
   ['chelsea', '🔵 เชลซี'],
   ['tottenham-hotspur', '⚪ สเปอร์ส'],
+  ['aston-villa', '🟣 แอสตันวิลลา'],
   ['real-madrid', '⚪ เรอัลมาดริด'],
-  ['barcelona', '🔵 บาร์เซโลนา']
+  ['barcelona', '🔵 บาร์เซโลนา'],
+  ['atletico-madrid', '🔴 แอตมาดริด'],
+  ['bayern-munchen', '🔴 บาเยิร์น'],
+  ['juventus', '⚪ ยูเวนตุส'],
+  ['inter', '🔵 อินเตอร์'],
+  ['ac-milan', '🔴 มิลาน']
 ];
 
 const pick = src => (src && SOURCES[src] && SOURCES[src].on ? SOURCES[src] : null);

@@ -284,7 +284,24 @@ function play(src,ref,onFail,forceProxy,opts){
     manifestLoadPolicy:{default:{maxTimeToFirstByteMs:20000,maxLoadTimeMs:60000,timeoutRetry:{maxNumRetry:2,retryDelayMs:1000,maxRetryDelayMs:8000},errorRetry:{maxNumRetry:2,retryDelayMs:1000,maxRetryDelayMs:8000}}},
     playlistLoadPolicy:{default:{maxTimeToFirstByteMs:20000,maxLoadTimeMs:60000,timeoutRetry:{maxNumRetry:3,retryDelayMs:1000,maxRetryDelayMs:8000},errorRetry:{maxNumRetry:3,retryDelayMs:1000,maxRetryDelayMs:8000}}},
     fragLoadPolicy:{default:{maxTimeToFirstByteMs:30000,maxLoadTimeMs:120000,timeoutRetry:{maxNumRetry:3,retryDelayMs:2000,maxRetryDelayMs:8000},errorRetry:{maxNumRetry:3,retryDelayMs:2000,maxRetryDelayMs:8000}}},
-    ...(opts.keyToken?{xhrSetup:(xhr,url)=>{if(url.includes('key')&&!url.includes('token')){try{xhr.open('GET',url+(url.includes('?')?'&':'?')+'token='+opts.keyToken,true);}catch(e){}}}}:{})
+    ...(opts.keyToken?{xhrSetup:(xhr,url)=>{
+      if(url.includes('key')&&!url.includes('token=')){
+        try{
+          let u2=url;
+          if(u2.includes('?url=')||u2.includes('&url=')){
+            const parsed=new URL(u2);
+            const tgt=parsed.searchParams.get('url');
+            if(tgt&&!tgt.includes('token=')){
+              parsed.searchParams.set('url',tgt+(tgt.includes('?')?'&':'?')+'token='+opts.keyToken);
+              u2=parsed.href;
+            }
+          }else{
+            u2=u2+(u2.includes('?')?'&':'?')+'token='+opts.keyToken;
+          }
+          xhr.open('GET',u2,true);
+        }catch(e){}
+      }
+    }}:{})
   });window._hls=h;
     h._viaProxy=!!forceProxy;
     h.on(Hls.Events.ERROR,(ev,data)=>{
@@ -1157,7 +1174,12 @@ function fbfChips(el,arr,cur,fn){
   const box=document.getElementById(el);if(!box)return;box.innerHTML='';
   arr.forEach(([v,label])=>{const b=document.createElement('button');b.textContent=label;
     if(cur===v)b.classList.add('on');
-    b.onclick=()=>fn(v,label);box.appendChild(b);});
+    b.onclick=()=>{
+      [...box.children].forEach(x=>x.classList.remove('on'));
+      b.classList.add('on');
+      fn(v,label);
+    };
+    box.appendChild(b);});
 }
 async function fbfInit(){
   if(FBF.teams.length)return;
@@ -1169,7 +1191,7 @@ async function fbfInit(){
 }
 function fbfRenderChips(){
   fbfChips('fbfteams',[['','🆕 ล่าสุดทุกทีม']].concat(FBF.teams),FBF.team,v=>{FBF.q='';const i=document.getElementById('fbfq');if(i)i.value='';fbfBrowse(v,1);});
-  const leagues=[['','🌐 ทุกลีก'],['premier-league','🏴 พรีเมียร์ลีก'],['champions-league','⭐ แชมเปียนส์ลีก'],['la-liga','🇪🇸 ลาลีกา'],['serie-a','🇮🇹 เซเรีย อา'],['bundesliga','🇩🇪 บุนเดสลีกา'],['ligue-1','🇫🇷 ลีกเอิง']];
+  const leagues=[['','🌐 ทุกลีก'],['premier-league','🏴 พรีเมียร์ลีก'],['champions-league','⭐ แชมเปียนส์ลีก'],['europa-league','🏆 ยูโรป้าลีก'],['la-liga','🇪🇸 ลาลีกา'],['serie-a','🇮🇹 เซเรีย อา'],['bundesliga','🇩🇪 บุนเดสลีกา'],['ligue-1','🇫🇷 ลีกเอิง']];
   fbfChips('fbfleagues',leagues,FBF.league||'',v=>{FBF.league=v;fbfBrowse(FBF.team,1);});
   const sb=document.getElementById('fbfsrcs');
   if(sb)sb.innerHTML=(FBF.srcs.length?FBF.srcs:[{label:'AESPORT'}]).map(s=>'<span class="src">'+fbfEsc(s.label)+'</span>').join('');
@@ -1232,6 +1254,7 @@ function fbfPlay(s){
   document.getElementById('u').value=FBF.item.url;
   setNow(FBF.item.title+' — '+s.label,-1);
   setLoading('⏳ กำลังโหลดสตรีม...');
+  window.scrollTo({top:0,behavior:'smooth'});
   play(s.url,'',()=>setLoading('✖ สตรีมนี้ใช้ไม่ได้ ลองเซิร์ฟเวอร์อื่น'),false,{keyToken:FBF.item.keyToken});
 }
 function fbfSearch(q){
@@ -1240,6 +1263,7 @@ function fbfSearch(q){
   if(el)el.value=FBF.q;
   FBF.team='';
   fbfBrowse('',1);
+  fbfRenderChips();
 }
 /* ===== 📡 ฟุตบอลสด (dooball-doonang GraphQL) ===== */
 const FBL_REF='https://www.dooball-doonang.com/';

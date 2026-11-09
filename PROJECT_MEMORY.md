@@ -1,5 +1,25 @@
 # eco_nx — Project Memory
 
+## 2026-11-09 — ⚽ ปรับปรุงแท็บ "ดูบอลย้อนหลัง" (เสถียร 100% ทั้งตรงและผ่าน Worker Relay)
+- **ปัญหาเดิม**:
+  - `soccerfull.net` เดิมตายถาวร (เปลี่ยนเป็น hgcloud iframe)
+  - AES-128 key token (`xAXD9RCV`) บน Cloudflare Worker relay ถูกตัดทิ้ง ทำให้สตรีมผ่าน worker ตอบ 401
+  - การคลิกชิปทีม/ลีกบนหน้าเว็บไม่สลับสถานะ active `.on` และเมื่อคลิกเล่นสตรีมหน้าจอไม่เลื่อนกลับขึ้นด้านบนไปที่ player
+- **การแก้ไขและอัปเกรด**:
+  - **`hls-worker/worker.js`**: อัปเกรดให้ตรวจจับและส่งต่อพารามิเตอร์ `token` ไปยัง target อัตโนมัติ (deploy ขึ้น CF แล้ว version `165d66d0`)
+  - **`index.html`**:
+    - ปรับ `xhrSetup` ให้ฉีด `keyToken` เข้า target URL ทั้งกรณีเล่นตรงและกรณีเล่นผ่าน Worker proxy
+    - ปรับ `fbfChips` ให้สลับ class `.on` ไดนามิกเมื่อผู้ใช้คลิกเลือกทีมหรือลีก
+    - เพิ่มลีก `🏆 ยูโรป้าลีก` (`europa-league`)
+    - ปรับ `fbfPlay` ให้ทำ `window.scrollTo({top:0,behavior:'smooth'})` อัตโนมัติเมื่อกดเริ่มเล่นสตรีม
+    - ปรับ `fbfSearch` ให้รีเซ็ตชิปทีมกลับเป็นค่าว่าง
+  - **`api/football-full.js`**: ขยายรายชื่อทีมยอดนิยมเป็น 14 สโมสรชั้นนำยุโรป (แมนยู, ลิเวอร์พูล, อาร์เซนอล, แมนซิตี้, เชลซี, สเปอร์ส, แอสตันวิลลา, เรอัลมาดริด, บาร์เซโลนา, แอตมาดริด, บาเยิร์น, ยูเวนตุส, อินเตอร์, มิลาน)
+- **การทดสอบยืนยันผล (Local Verified)**:
+  - สตรีมตรง: 1280x720 25fps, readyState 4, t เดินต่อเนื่อง
+  - สตรีมผ่าน Worker Proxy: 1280x720 25fps, readyState 4, t=5.0s, mode "▶ ผ่าน worker (ฟรี bandwidth)"
+  - การกรองทีม, กรองลีก, ค้นหาชื่อทีม และปุ่มโหลดย้อนหลังอีก ทำงานสมบูรณ์
+
+
 ## 2026-11-09 — ☁️ การยกระดับสู่ Cloud Workspaces (GitHub Codespaces & Google Cloud Shell)
 - **ทิศทางความสนใจหลักของผู้ใช้ (User Core Focus)**: ผู้ใช้ต้องการให้ Eco Nx สามารถพัฒนาและรันต่อได้แบบไร้รอยต่อจากทุกที่ผ่าน Cloud Workspaces (GitHub Codespaces และ Google Cloud Shell)
 - **การติดตั้ง & ตั้งค่า Cloud Workspaces**:

@@ -10,12 +10,16 @@ export default {
   async fetch(req) {
     if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
     const u = new URL(req.url);
-    const target = u.searchParams.get('url');
+    let target = u.searchParams.get('url');
     const referer = u.searchParams.get('ref') || '';
+    const token = u.searchParams.get('token') || '';
     // direct=1 → เก็บ URL segment เดิมไว้ (CDN ต้นทางส่ง CORS * → browser ดึงตรง ไม่กิน request ของ worker)
     const direct = u.searchParams.get('direct') === '1';
     if (!target || !/^https?:\/\//i.test(target)) return jerr('need ?url=https://...');
     if (referer && !/^https?:\/\//i.test(referer)) return jerr('bad ref');
+    if (token && !target.includes('token=')) {
+      target += (target.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token);
+    }
     let r;
     try {
       const isPost = req.method === 'POST';
