@@ -1,5 +1,18 @@
 # eco_nx — Project Memory
 
+## 2026-11-09 (ต่อ) — 🔎 สแกนแหล่ง "ฟุตบอลเต็มแมตช์ย้อนหลัง" ที่ขุดลงเว็บได้ (เน้นแมนยู)
+- **ผู้ชนะ: `aesport.tv`** — โครงสร้างครบและสตรีมเป็น m3u8 ตรง (พิสูจน์แล้วว่า hls.js เปล่าเล่นได้)
+  - list: `/replay?page=N` = 100 แมตช์/หน้า · **37 หน้า = 3,638 แมตช์ ย้อนถึง 2025-03-08** · มี `/tournaments/{league}` (16 แมตช์ + 5 hit แมนยู) · `/match/{slug}-{id}`
+  - **แมตช์แมนยู 74 แมตช์** (35 จาก 37 หน้ามีอย่างน้อย 1) — slug `manchester-united` ใช้กรองได้
+  - สตรีม: HTML มี `<script id="player-data">{...}` → `https://vod.cdnfly.click/vod/{league}_{team}-{ts}-{dur}.mp4/index.m3u8` (1280×720 25fps ~2.7Mbps) · CORS `*` ทั้ง playlist/segment/key
+  - **กับดักสำคัญ**: AES-128 key `ssl.cdnfly.click/vod/vod-key.php?...` ตอบ 401 ถ้าไม่เติม `&token=xAXD9RCV` — token **ตายตัว ฝังใน `https://aesport.tv/libs/hls.min.js`** (patch ของเขาเอง: `if(a.includes("key")&&!a.includes("token")) a+="&token=xAXD9RCV"`) → ใช้ `new Hls({xhrSetup:(xhr,url)=>{if(url.includes('vod-key')&&!url.includes('token'))xhr.open('GET',url+'&token=xAXD9RCV',true)}})`
+  - ยืนยันเล่นได้: 1280×720, t=11.3s, ready=4, ไม่มี error · token ใช้ได้กับแมตช์อื่นด้วย (ทดสอบ `uk_bts8-...`)
+  - ข้อควรระวัง: บางแมตช์ (VIP) ไม่มี m3u8 ในหน้า → ต้อง fallback/ข้าม
+- **รอง**: `timesoccertv.com` — WP REST API ใช้ได้ (`/wp-json/wp/v2/posts?search=manchester&per_page=5&_fields=id,date,link,title`), มีหน้า `/manchester-united-highlights/` + `/tag/manchester-united/` แต่ player = ok.ru iframe + VOE (`susanexpectcare.com/e/xxx` → mp4 obfuscated) ต้องเขียน resolver
+- `fullmatchsports.cc` — มี full match เยอะ แต่เป็น **download ผ่าน ad-gateway** ไม่มี player ใน HTML · `dasfootball.com` — mp4 ตรง `eraofsports.com` 126MB แต่ **ไม่มี CORS** (ต้องผ่าน worker) และเป็นไฮไลท์
+- **ตาย/ใช้ไม่ได้**: soccerfull.net (เปลี่ยนเป็น `hgcloud.to/e/...` → `/hls/{sid}.m3u8` 404), soccerfullmatch.com (DNS), footyfull.com/refooty.com/matchreplay.com/bahfootball.com (DNS), allsportszone 503, fullreplays.com 401, footballia.net (SSL chain)
+- ยังไม่ได้ทำ: แท็บใหม่ในเว็บ (`api/football-full.js` + tab) — รอ user สั่ง
+
 ## 2026-11-09 — 🔋 ย้าย playlist + metadata ไป CF worker (Vercel เหลือ ~0 bandwidth) — `b7a3630`
 - **บริบท**: user ถามว่าเล่นทั้งหมดแบบ "ไม่เปลืองโควตา" ได้ไหม → ตรวจโค้ดแล้วพบว่าวิดีโอ**ไม่เคยไหลผ่าน Vercel** อยู่แล้ว: `proxied()` ชี้ `https://nx-hls.hls-worker.workers.dev` ตัวเดียว แต่ยังเหลือ 2 ทางที่กิน Vercel: (1) `/api/fetch` สำหรับ HTML/JSON ทุกหน้า (2) `/api/hls?direct=1` ของ soccerfull
 - **worker v `51c0f09d`**: เพิ่ม `direct=1` (playlist ผ่าน worker แต่ segment ชี้ CDN ต้นทางตรง) + HTML/JSON ตอบ `Cache-Control: no-store` (ของเดิม max-age=3600 ทำให้รายการค้าง) · segment/ไบนารียัง cache 1 ชม.
