@@ -230,14 +230,12 @@ function parseMySeries(html, base) {
     const url = m[1];
     if (!url || seen.has(url) || !url.includes('/series/')) continue;
     seen.add(url);
-    // Find the img and title within this card
     const cardHtml = html.slice(m.index, m.index + 2000);
     const imgMatch = cardHtml.match(/<img[^>]*src="([^"]+)"/);
     const img = imgMatch ? absUrl(imgMatch[1], base) : '';
-    // Title is in <p class="text-sm font-bold text-slate-100..."> with title attribute
-    const titleMatch = cardHtml.match(/title="([^"]+)"/) || cardHtml.match(/<p[^>]*class="[^"]*text-sm font-bold[^"]*"[^>]*>([^<]+)</);
+    // Title is in title attribute of the <p> tag
+    const titleMatch = cardHtml.match(/title="([^"]+)"/);
     const title = titleMatch ? decodeEnt(titleMatch[1]).trim() : url;
-    // Badge from the episode badge spans
     let badge = '';
     if (/พากย์ไทย\s*EP:/.test(cardHtml)) badge = 'พากย์ไทย';
     else if (/ซับไทย\s*EP:/.test(cardHtml)) badge = 'ซับไทย';
