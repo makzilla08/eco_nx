@@ -17,8 +17,8 @@ const SOURCES = {
   'myseries-thai-sub': 'https://myseriesz.com/category/sub-thai',
   'myseries-korean': 'https://myseriesz.com/category/korean-series',
   'myseries-chinese': 'https://myseriesz.com/category/chinese-series',
-  'anime-th-dub': 'https://anime-th.com/category/พากย์ไทย',
-  'anime-th-sub': 'https://anime-th.com/category/ซับไทย',
+  'anime-th-dub': 'https://anime-th.com/category/%E0%B8%9E%E0%B8%B2%E0%B8%81%E0%B8%A2%E0%B9%8C%E0%B9%84%E0%B8%97%E0%B8%A2/',
+  'anime-th-sub': 'https://anime-th.com/category/%E0%B8%8B%E0%B8%B1%E0%B8%9A%E0%B9%84%E0%B8%97%E0%B8%A2/',
   'anime-dee-dub': 'https://anime-dee.com/lang/thai/',
   'anime-dee-sub': 'https://anime-dee.com/lang/subthai/',
   'anime-dee-chinese': 'https://anime-dee.com/category/chinese/'
@@ -72,6 +72,18 @@ async function fetchDirect(url, ms) {
 async function fetchK14(url) {
   try { return await fetchDirect(url, 12000); }
   catch { return await fetchHtml(url, 12000); }
+}
+async function fetchMySeries(url) {
+  try { return await fetchDirect(url, 15000); }
+  catch { return await fetchHtml(url, 15000); }
+}
+async function fetchAnimeTh(url) {
+  try { return await fetchDirect(url, 15000); }
+  catch { return await fetchHtml(url, 15000); }
+}
+async function fetchAnimeDee(url) {
+  try { return await fetchDirect(url, 15000); }
+  catch { return await fetchHtml(url, 15000); }
 }
 
 function parseHit(html, base) {
@@ -226,47 +238,62 @@ function parseFairy(html, base) {
 
 function parseMySeries(html, base) {
   const out = [], seen = new Set();
-  for (const m of html.matchAll(/<a[^>]*href="(https:\/\/myseriesz\.com\/series\/[^"]+)"[^>]*>/g)) {
+  // Episode pages: links with title attribute containing "EP"
+  for (const m of html.matchAll(/<a[^>]*href="(https:\/\/myseriesz\.com\/series\/[^"]+\/ep-\d+)"[^>]*title="([^"]+)"[^>]*>/g)) {
     const url = m[1];
-    if (!url || seen.has(url) || !url.includes('/series/')) continue;
+    if (!url || seen.has(url)) continue;
     seen.add(url);
-    const cardHtml = html.slice(m.index, m.index + 2000);
-    const imgMatch = cardHtml.match(/<img[^>]*src="([^"]+)"/);
-    const img = imgMatch ? absUrl(imgMatch[1], base) : '';
-    // Title is in title attribute of the <p> tag
-    const titleMatch = cardHtml.match(/title="([^"]+)"/);
-    const title = titleMatch ? decodeEnt(titleMatch[1]).trim() : url;
+    const title = decodeEnt(m[2]).trim();
     let badge = '';
-    if (/พากย์ไทย\s*EP:/.test(cardHtml)) badge = 'พากย์ไทย';
-    else if (/ซับไทย\s*EP:/.test(cardHtml)) badge = 'ซับไทย';
-    out.push({ url, title, cover: img, badge, src: 'myseries' });
+    if (/พากย์ไทย/i.test(title)) badge = 'พากย์ไทย';
+    else if (/ซับไทย/i.test(title)) badge = 'ซับไทย';
+    out.push({ url, title, cover: '', badge, src: 'myseries' });
+  }
+  // Series listing pages: existing logic
+  if (out.length === 0) {
+    for (const m of html.matchAll(/<a[^>]*href="(https:\/\/myseriesz\.com\/series\/[^"]+)"[^>]*>/g)) {
+      const url = m[1];
+      if (!url || seen.has(url) || !url.includes('/series/')) continue;
+      seen.add(url);
+      const cardHtml = html.slice(m.index, m.index + 4000);
+      const imgMatch = cardHtml.match(/<img[^>]*src="([^"]+)"/);
+      const img = imgMatch ? absUrl(imgMatch[1], base) : '';
+      const titleMatch = cardHtml.match(/<p[^>]*class="[^"]*text-sm font-bold[^"]*"[^>]*title="([^"]+)"[^>]*>[\s\S]*?<\/p>/);
+      const title = titleMatch ? decodeEnt(titleMatch[1]).trim() : url;
+      let badge = '';
+      if (/พากย์ไทย\s*EP:/.test(cardHtml)) badge = 'พากย์ไทย';
+      else if (/ซับไทย\s*EP:/.test(cardHtml)) badge = 'ซับไทย';
+      out.push({ url, title, cover: img, badge, src: 'myseries' });
+    }
   }
   return out;
 }
 
-function parseAnimeTh(html, base) {
+function parseAnimeTh(html, base, source) {
   const out = [], seen = new Set();
-  for (const m of html.matchAll(/<a[^>]*href="([^"]+\/anime\/[^"]+)"[^>]*>\s*<img[^>]*src="([^"]+)"[^>]*alt="([^"]*)"/g)) {
+  for (const m of html.matchAll(/<a[^>]*href="([^"]+\/anime\/[^"]+)"[^>]*>[\s\S]*?<img[^>]*(?:src|data-src)="([^"]+)"[^>]*alt="([^"]*)"/g)) {
     const url = absUrl(m[1], base);
     if (!url || seen.has(url)) continue;
     seen.add(url);
     const img = absUrl(m[2], base);
     const title = decodeEnt(m[3]).trim();
-    const badge = /พากย์ไทย/.test(html.slice(m.index-200, m.index+200)) ? 'พากย์ไทย' : /ซับไทย/.test(html.slice(m.index-200, m.index+200)) ? 'ซับไทย' : '';
+    const isDub = source && source.includes('dub');
+    const badge = isDub ? 'พากย์ไทย' : 'ซับไทย';
     out.push({ url, title, cover: img, badge, src: 'anime-th' });
   }
   return out;
 }
 
-function parseAnimeDee(html, base) {
+function parseAnimeDee(html, base, source) {
   const out = [], seen = new Set();
-  for (const m of html.matchAll(/<a[^>]*href="([^"]+)"[^>]*class="[^"]*anime-card[^"]*"[\s\S]*?<img[^>]*src="([^"]+)"[\s\S]*?<h3[^>]*>([^<]+)</g)) {
+  for (const m of html.matchAll(/<a[^>]*class="ez-card-art"[^>]*href="([^"]+)"[^>]*>[^<]*<img[^>]*src="([^"]+)"[^>]*alt="([^"]*)"/g)) {
     const url = absUrl(m[1], base);
     if (!url || seen.has(url)) continue;
     seen.add(url);
     const img = absUrl(m[2], base);
     const title = decodeEnt(m[3]).trim();
-    const badge = /พากย์ไทย|dubth/.test(html.slice(m.index-300, m.index+300)) ? 'พากย์ไทย' : /ซับไทย|subthai/.test(html.slice(m.index-300, m.index+300)) ? 'ซับไทย' : '';
+    const isDub = source && source.includes('dub');
+    const badge = isDub ? 'พากย์ไทย' : 'ซับไทย';
     out.push({ url, title, cover: img, badge, src: 'anime-dee' });
   }
   return out;
@@ -403,9 +430,9 @@ export default async function handler(req, res) {
         if (/[?&]s=/.test(target)) target += (target.includes('paged=') ? '' : (target.includes('?') ? '&' : '?') + 'paged=' + pg);
         else target = target.replace(/\/$/, '') + '/page/' + pg + '/';
       }
-      const html = await (parser === 'k14' ? fetchK14(target) : fetchHtml(target));
+      const html = await (parser === 'k14' ? fetchK14(target) : parser === 'myseries' ? fetchMySeries(target) : fetchHtml(target));
       const totM = parser === 'k14' ? html.match(/ทั้งหมด\s*([\d,]+)\s*เรื่อง/) : null;
-      return res.status(200).json({ items: fn(html, u.origin + '/'), totalPages: maxPage(html), total: totM ? +totM[1].replace(/,/g, '') : 0 });
+      return res.status(200).json({ items: fn(html, u.origin + '/', parser), totalPages: maxPage(html), total: totM ? +totM[1].replace(/,/g, '') : 0 });
     } catch (e) {
       return res.status(502).json({ error: String(e.message || e).slice(0, 120) });
     }
@@ -415,8 +442,12 @@ export default async function handler(req, res) {
   const pg = Math.max(1, +page || 1);
   const url = pg > 1 ? base.replace(/\/$/, '') + '/page/' + pg + '/' : base;
   try {
-    const html = await fetchHtml(url);
-    const items = pickParser(source)(html, base);
+    let fetcher = fetchHtml;
+    if (source.startsWith('myseries-')) fetcher = fetchMySeries;
+    else if (source.startsWith('anime-th-')) fetcher = fetchAnimeTh;
+    else if (source.startsWith('anime-dee-')) fetcher = fetchAnimeDee;
+    const html = await fetcher(url);
+    const items = pickParser(source)(html, base, source);
     return res.status(200).json({ items, totalPages: maxPage(html) });
   } catch (e) {
     return res.status(502).json({ error: String(e.message || e).slice(0, 120) });
