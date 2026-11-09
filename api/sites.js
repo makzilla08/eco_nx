@@ -208,6 +208,10 @@ function maxPage(html) {
     const n = +m[1];
     if (n > mx && n < 100000) mx = n;
   }
+  for (const m of html.matchAll(/[?&]page=(\d+)/g)) {
+    const n = +m[1];
+    if (n > mx && n < 100000) mx = n;
+  }
   return mx;
 }
 
@@ -427,8 +431,13 @@ export default async function handler(req, res) {
       const pg = Math.max(1, +page || 1);
       let target = custom;
       if (pg > 1) {
-        if (/[?&]s=/.test(target)) target += (target.includes('paged=') ? '' : (target.includes('?') ? '&' : '?') + 'paged=' + pg);
-        else target = target.replace(/\/$/, '') + '/page/' + pg + '/';
+        if (parser === 'myseries') {
+          target = target.replace(/\/$/, '') + (target.includes('?') ? '&' : '?') + 'page=' + pg;
+        } else if (/[?&]s=/.test(target)) {
+          target += (target.includes('paged=') ? '' : (target.includes('?') ? '&' : '?') + 'paged=' + pg);
+        } else {
+          target = target.replace(/\/$/, '') + '/page/' + pg + '/';
+        }
       }
       const html = await (parser === 'k14' ? fetchK14(target) : parser === 'myseries' ? fetchMySeries(target) : fetchHtml(target));
       const totM = parser === 'k14' ? html.match(/ทั้งหมด\s*([\d,]+)\s*เรื่อง/) : null;
@@ -440,7 +449,12 @@ export default async function handler(req, res) {
   const base = SOURCES[source];
   if (!base) return res.status(400).json({ error: 'unknown source' });
   const pg = Math.max(1, +page || 1);
-  const url = pg > 1 ? base.replace(/\/$/, '') + '/page/' + pg + '/' : base;
+  let url;
+  if (source.startsWith('myseries-')) {
+    url = pg > 1 ? base.replace(/\/$/, '') + '?page=' + pg : base;
+  } else {
+    url = pg > 1 ? base.replace(/\/$/, '') + '/page/' + pg + '/' : base;
+  }
   try {
     let fetcher = fetchHtml;
     if (source.startsWith('myseries-')) fetcher = fetchMySeries;
