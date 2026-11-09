@@ -12,8 +12,16 @@ const SOURCES = {
   'fairy-top': 'https://fairyanime.net/scoretop/',
   'o37-new': 'https://037hddd.com/',
   'o37-movies': 'https://037hddd.com/movies',
-  'sd-new': 'https://seriesdet.com/',
-  'sd-china': 'https://seriesdet.com/category/chinese-series/'
+  'myseries-latest': 'https://myseriesz.com/series',
+  'myseries-thai-dub': 'https://myseriesz.com/category/thai-dubbed',
+  'myseries-thai-sub': 'https://myseriesz.com/category/sub-thai',
+  'myseries-korean': 'https://myseriesz.com/category/korean-series',
+  'myseries-chinese': 'https://myseriesz.com/category/chinese-series',
+  'anime-th-dub': 'https://anime-th.com/category/พากย์ไทย',
+  'anime-th-sub': 'https://anime-th.com/category/ซับไทย',
+  'anime-dee-dub': 'https://anime-dee.com/lang/thai/',
+  'anime-dee-sub': 'https://anime-dee.com/lang/subthai/',
+  'anime-dee-chinese': 'https://anime-dee.com/category/chinese/'
 };
 
 function absUrl(href, base) {
@@ -195,8 +203,10 @@ function pickParser(source) {
   if (source.startsWith('hit-')) return parseHit;
   if (source.startsWith('fairy-')) return parseFairy;
   if (source.startsWith('m285-')) return parseM285;
-  if (source.startsWith('sd-')) return parseSeriesdet;
   if (source.startsWith('o37-')) return parseO37;
+  if (source.startsWith('myseries-')) return parseMySeries;
+  if (source.startsWith('anime-th-')) return parseAnimeTh;
+  if (source.startsWith('anime-dee-')) return parseAnimeDee;
   return parseHit;
 }
 
@@ -210,6 +220,56 @@ function parseFairy(html, base) {
     const img = (block.match(/data-src="(https:[^"]+)"/) || block.match(/src="(https:[^"]+\.jpg[^"]*)"/) || [])[1] || '';
     const badge = (block.match(/ribbon-(sub|thai)">([^<]+)/) || [])[2] || '';
     out.push({ url, title: m[2].trim(), cover: img, badge, src: 'fairyanime' });
+  }
+  return out;
+}
+
+function parseMySeries(html, base) {
+  const out = [], seen = new Set();
+  for (const m of html.matchAll(/<a[^>]*href="(https:\/\/myseriesz\.com\/series\/[^"]+)"[^>]*>/g)) {
+    const url = m[1];
+    if (!url || seen.has(url) || !url.includes('/series/')) continue;
+    seen.add(url);
+    // Find the img and title within this card
+    const cardHtml = html.slice(m.index, m.index + 2000);
+    const imgMatch = cardHtml.match(/<img[^>]*src="([^"]+)"/);
+    const img = imgMatch ? absUrl(imgMatch[1], base) : '';
+    // Title is in <p class="text-sm font-bold text-slate-100..."> with title attribute
+    const titleMatch = cardHtml.match(/title="([^"]+)"/) || cardHtml.match(/<p[^>]*class="[^"]*text-sm font-bold[^"]*"[^>]*>([^<]+)</);
+    const title = titleMatch ? decodeEnt(titleMatch[1]).trim() : url;
+    // Badge from the episode badge spans
+    let badge = '';
+    if (/พากย์ไทย\s*EP:/.test(cardHtml)) badge = 'พากย์ไทย';
+    else if (/ซับไทย\s*EP:/.test(cardHtml)) badge = 'ซับไทย';
+    out.push({ url, title, cover: img, badge, src: 'myseries' });
+  }
+  return out;
+}
+
+function parseAnimeTh(html, base) {
+  const out = [], seen = new Set();
+  for (const m of html.matchAll(/<a[^>]*href="([^"]+\/anime\/[^"]+)"[^>]*>\s*<img[^>]*src="([^"]+)"[^>]*alt="([^"]*)"/g)) {
+    const url = absUrl(m[1], base);
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    const img = absUrl(m[2], base);
+    const title = decodeEnt(m[3]).trim();
+    const badge = /พากย์ไทย/.test(html.slice(m.index-200, m.index+200)) ? 'พากย์ไทย' : /ซับไทย/.test(html.slice(m.index-200, m.index+200)) ? 'ซับไทย' : '';
+    out.push({ url, title, cover: img, badge, src: 'anime-th' });
+  }
+  return out;
+}
+
+function parseAnimeDee(html, base) {
+  const out = [], seen = new Set();
+  for (const m of html.matchAll(/<a[^>]*href="([^"]+)"[^>]*class="[^"]*anime-card[^"]*"[\s\S]*?<img[^>]*src="([^"]+)"[\s\S]*?<h3[^>]*>([^<]+)</g)) {
+    const url = absUrl(m[1], base);
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    const img = absUrl(m[2], base);
+    const title = decodeEnt(m[3]).trim();
+    const badge = /พากย์ไทย|dubth/.test(html.slice(m.index-300, m.index+300)) ? 'พากย์ไทย' : /ซับไทย|subthai/.test(html.slice(m.index-300, m.index+300)) ? 'ซับไทย' : '';
+    out.push({ url, title, cover: img, badge, src: 'anime-dee' });
   }
   return out;
 }
@@ -305,10 +365,10 @@ async function searchYoutube(q) {
 }
 
 async function searchAll(req, res, q) {
-  const [o37, hit, sd, youtube, k14] = await Promise.all([
+  const [o37, hit, myseries, youtube, k14] = await Promise.all([
     searchO37(q),
     searchWP('https://hit-anime.com/', parseHit, q),
-    searchWP('https://seriesdet.com/', parseSeriesdet, q),
+    searchWP('https://myseriesz.com/series', parseMySeries, q),
     searchYoutube(q),
     search14K(q)
   ]);
@@ -317,7 +377,7 @@ async function searchAll(req, res, q) {
       { site: '037hd', items: o37 },
       { site: '14kmovies', items: k14 },
       { site: 'hit-anime', items: hit },
-      { site: 'seriesdet', items: sd },
+      { site: 'myseries', items: myseries },
       { site: 'YouTube', items: youtube }
     ]
   });
@@ -332,11 +392,11 @@ export default async function handler(req, res) {
   }
   if (custom) {
     // custom URL browse — only our allowlisted hosts
-    const allow = { 'hit-anime.com': parseHit, 'seriesdet.com': parseSeriesdet, '037hddd.com': parseO37, 'hd.movie285.com': parseM285, '14kmovies.com': parse14K };
+    const allow = { 'hit-anime.com': parseHit, '037hddd.com': parseO37, 'hd.movie285.com': parseM285, '14kmovies.com': parse14K, 'myseriesz.com': parseMySeries, 'anime-th.com': parseAnimeTh, 'anime-dee.com': parseAnimeDee };
     let u;
     try { u = new URL(custom); } catch { return res.status(400).json({ error: 'bad url' }); }
     const host = u.hostname.replace(/^www\./, '');
-    const fn = allow[host] && (parser ? { hit: parseHit, sd: parseSeriesdet, o37: parseO37, m285: parseM285, k14: parse14K }[parser] : allow[host]);
+    const fn = allow[host] && (parser ? { hit: parseHit, o37: parseO37, m285: parseM285, k14: parse14K, myseries: parseMySeries, 'anime-th': parseAnimeTh, 'anime-dee': parseAnimeDee }[parser] : allow[host]);
     if (!fn) return res.status(403).json({ error: 'host not allowed' });
     try {
       const pg = Math.max(1, +page || 1);

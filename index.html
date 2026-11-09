@@ -683,11 +683,9 @@ const HIT_CAT={'hit-latest':'https://hit-anime.com/','hit-sub':'https://hit-anim
 const MOV_G=['action','comedy','drama','horror','romance','documentary','war','thai'];
 const MOV_C=['ฝรั่ง','สากล','เอเชีย','ไทย'];
 const MOV_T=['พากย์ไทย','ซับไทย'];
-const SD_CAT={latest:'https://seriesdet.com/',china:'https://seriesdet.com/category/chinese-series/',korea:'https://seriesdet.com/category/ซีรี่ย์เกาหลี/',west:'https://seriesdet.com/category/ซีรี่ย์ฝรั่ง/',thai:'https://seriesdet.com/category/ซีรี่ย์ไทย/'};
-const SD_SUB={china:['chinese-series-ซับไทย','chinese-series-พากย์ไทย'],korea:['ซีรี่ย์เกาหลี-ซับไทย','ซีรี่ย์เกาหลี-พากย์ไทย'],west:['ซีรี่ย์ฝรั่ง-ซับไทย','ซีรี่ย์ฝรั่ง-พากย์ไทย']};
 let HH={cat:'hit-latest',genre:'',letter:'',page:1};
 let MV={genre:'',country:'',year:'',type:'',letter:'',page:1};
-let SR={src:'o37',genre:'',country:'',year:'',type:'',letter:'',sdcat:'latest',sdvoice:'',sdyear:'',sdletter:'',page:1};
+let SR={src:'o37',genre:'',country:'',year:'',type:'',letter:'',sdcat:'latest',sdyear:'',sdletter:'',page:1};
 const PER=25;
 function drawPager(id,cur,total,fn){
   const el=document.getElementById(id);
@@ -777,10 +775,10 @@ async function movieBrowse(page){
 }
 function setS(k,v){SR[k]=v;SR.page=1;renderSRows();seriesBrowse();}
 function renderSRows(){
-  mkRow('ssrc',[['o37','037hd'],['sd','seriesdet']].map(x=>x[0]),SR.src,()=>{},null);
-  document.querySelectorAll('#ssrc button').forEach((b,i)=>{b.textContent=[['037hd'],['seriesdet']][i][0];b.onclick=()=>setS('src',['o37','sd'][i]);});
+  mkRow('ssrc',[['o37','037hd'],['myseries','myseries']].map(x=>x[0]),SR.src,()=>{},null);
+  document.querySelectorAll('#ssrc button').forEach((b,i)=>{b.textContent=[['037hd'],['MySeries']][i][0];b.onclick=()=>setS('src',['o37','myseries'][i]);});
   document.getElementById('s_o37').style.display=SR.src==='o37'?'block':'none';
-  document.getElementById('s_sd').style.display=SR.src==='sd'?'block':'none';
+  document.getElementById('s_sd').style.display=SR.src==='myseries'?'block':'none';
   if(SR.src==='o37'){
     mkRow('sgenre',MOV_G,SR.genre,v=>setS('genre',v),null);
     mkRow('scountry',MOV_C,SR.country,v=>setS('country',v),null);
@@ -788,11 +786,8 @@ function renderSRows(){
     mkRow('stype',MOV_T,SR.type,v=>setS('type',v),null);
     mkLetters('sletters',SR.letter,v=>setS('letter',v));
   }else{
-    mkRow('sdcats',Object.keys(SD_CAT),SR.sdcat,v=>setS('sdcat',v),null);
-    document.querySelectorAll('#sdcats button').forEach((b,i)=>{b.textContent=[['ทั้งหมด (อัพเดท)'],['🐉 จีน'],['🇰🇷 เกาหลี'],['🌍 ฝรั่ง'],['🇹🇭 ไทย']][i][0];});
-    const sub=SD_SUB[{china:'china',korea:'korea',west:'west'}[SR.sdcat]]||[];
-    mkRow('sdvoice',sub,SR.sdvoice,v=>setS('sdvoice',v),null);
-    document.querySelectorAll('#sdvoice button').forEach((b,i)=>{const L=[['ทั้งหมด']];sub.forEach(s=>L.push([/ซับไทย/.test(s)?'💬 ซับไทย':'🔊 พากย์ไทย']));b.textContent=L[i][0];});
+    mkRow('sdcats',['latest','thai-dubbed','sub-thai','korean-series','chinese-series'],SR.sdcat,v=>setS('sdcat',v),null);
+    document.querySelectorAll('#sdcats button').forEach((b,i)=>{b.textContent=[['ทั้งหมด'],['🔊 พากย์ไทย'],['💬 ซับไทย'],['🇰🇷 เกาหลี'],['🐉 จีน']][i][0];});
     mkRow('sdyears',YEARS.slice(0,11),SR.sdyear,v=>setS('sdyear',v),null);
     mkLetters('sdletters',SR.sdletter,v=>setS('sdletter',v));
   }
@@ -894,14 +889,17 @@ async function seriesBrowse(page){
       if(SR.year)url+='&year='+SR.year;
       if(SR.type)url+='&type='+encodeURIComponent(SR.type);
       if(SR.letter)url+='&letter='+encodeURIComponent(SR.letter);
-    }else if(SR.sdletter){
-      url='/api/sites?custom='+encodeURIComponent('https://seriesdet.com/?s='+SR.sdletter)+'&parser=sd';
-    }else if(SR.sdyear){
-      url='/api/sites?custom='+encodeURIComponent('https://seriesdet.com/'+SR.sdyear+'/')+'&parser=sd';
-    }else{
-      let base=SD_CAT[SR.sdcat]||SD_CAT.latest;
-      if(SR.sdvoice&&SR.sdcat!=='latest'&&SR.sdcat!=='thai')base+=SR.sdvoice+'/';
-      url='/api/sites?custom='+encodeURIComponent(base)+'&parser=sd'+'&page='+pg;
+    }else if(SR.src==='myseries'){
+      const catMap={'latest':'series','thai-dubbed':'category/thai-dubbed','sub-thai':'category/sub-thai','korean-series':'category/korean-series','chinese-series':'category/chinese-series'};
+      const cat=catMap[SR.sdcat]||'series';
+      if(SR.sdletter){
+        url='/api/sites?custom='+encodeURIComponent('https://myseriesz.com/series?s='+SR.sdletter)+'&parser=myseries';
+      }else if(SR.sdyear){
+        url='/api/sites?custom='+encodeURIComponent('https://myseriesz.com/'+SR.sdyear+'/')+'&parser=myseries';
+      }else{
+        let base='https://myseriesz.com/'+cat;
+        url='/api/sites?custom='+encodeURIComponent(base)+'&parser=myseries'+'&page='+pg;
+      }
     }
     const j=await getJSON(url);
     g.innerHTML='';
@@ -952,25 +950,23 @@ async function expandSeries(url,title){
       render(eps.map((e,i)=>({ep:e.ep_number,dbId:e.id,play:()=>resolveO37Episode(m37[1],e.id,e.ep_number,title,i)})));
       return;
     }
-    // seriesdet: ปุ่มตอนเป็น <button class="wmep-ep-btn" data-ep-num + data-url-th/en>
-    if(/seriesdet\.com\//.test(url)){
+    // myseries: episode list on series page with links to /series/.../ep-N
+    if(/myseriesz\.com\/series\//.test(url)){
       const html=await pGet(url);
       const eps=[];
-      for(const m of html.matchAll(/<button[^>]*class="[^"]*wmep-ep-btn[^"]*"[^>]*>/g)){
-        const tag=m[0];
-        const num=(tag.match(/data-ep-num="(\d+)"/)||[])[1];
-        const pu=(tag.match(/data-url-th="(https:[^"]+)"/)||[])[1]
-          ||(tag.match(/data-url-en="(https:[^"]+)"/)||[])[1];
-        if(num&&pu&&!eps.some(e=>e.ep===+num))eps.push({ep:+num,url:pu,ref:url});
+      // Pattern: <a href="https://myseriesz.com/series/.../ep-1" ...>
+      for(const m of html.matchAll(/<a[^>]*href="(https:\/\/myseriesz\.com\/series\/[^"]+\/ep-(\d+))"/g)){
+        const epUrl=m[1];
+        const epNum=+m[2];
+        if(epNum<500&&!eps.some(e=>e.ep===epNum))eps.push({ep:epNum,url:epUrl,ref:url});
       }
-      if(!eps.length&&/เลือกตอน/.test(html)){
-        const base=url.replace(/\/\d+\/?$/,'').replace(/\/+$/,'')+'/';
-        const besc=base.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-        for(const m of html.matchAll(new RegExp('<a[^>]*href="('+besc+'(\\d{1,3})/?)"','g'))){
-          const n=+m[2];
-          if(n<500&&!eps.some(e=>e.ep===n))eps.push({ep:n,url:m[1],ref:url});
+      // Also check for "Select Episode" dropdown pattern
+      if(!eps.length){
+        for(const m of html.matchAll(/<option[^>]*value="(https:\/\/myseriesz\.com\/series\/[^"]+\/ep-(\d+))"/g)){
+          const epUrl=m[1];
+          const epNum=+m[2];
+          if(epNum<500&&!eps.some(e=>e.ep===epNum))eps.push({ep:epNum,url:epUrl,ref:url});
         }
-        if(eps.length&&!eps.some(e=>e.ep===1))eps.push({ep:1,url,ref:url});
       }
       if(!eps.length)throw new Error('empty');
       eps.sort((a,b)=>a.ep-b.ep);
