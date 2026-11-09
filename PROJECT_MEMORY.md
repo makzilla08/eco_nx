@@ -1,5 +1,14 @@
 # eco_nx — Project Memory
 
+## 2026-11-09 — ☁️ การยกระดับสู่ Cloud Workspaces (GitHub Codespaces & Google Cloud Shell)
+- **ทิศทางความสนใจหลักของผู้ใช้ (User Core Focus)**: ผู้ใช้ต้องการให้ Eco Nx สามารถพัฒนาและรันต่อได้แบบไร้รอยต่อจากทุกที่ผ่าน Cloud Workspaces (GitHub Codespaces และ Google Cloud Shell)
+- **การติดตั้ง & ตั้งค่า Cloud Workspaces**:
+  - **GitHub Codespaces**: เพิ่ม `.devcontainer/devcontainer.json` ใช้ Node.js 20 LTS container, ทำ auto `npm install`, และตั้งค่า forward port 8099 (`serve.js`) อัตโนมัติ เปิดผ่านลิงก์ [https://codespaces.new/makzilla08/eco_nx](https://codespaces.new/makzilla08/eco_nx)
+  - **Google Cloud Shell**: เพิ่ม `.cloudshell/cloudshell.json` และ `cloudshell_open.sh` รองรับ 1-Click clone & launch ผ่าน Cloud Shell Editor (ผสานประโยชน์จากสิทธิ์ Gemini Enterprise / Google Cloud AI Pass TH)
+  - **Documentation**: สร้าง `README.md` สรุปภาพรวมและปุ่ม 1-click cloud workspace ชัดเจน
+- **เป้าหมายงานถัดไป (Pending Target)**: สำรอง/ดันโปรเจกต์ Android Wrapper (`~/android-dev/EcoNx` + keystore `econx.jks`) ขึ้น GitHub เพื่อให้ครบวงจรทั้งเว็บและแอป
+
+
 ## 2026-11-09 (ต่อ) — 🔎 สแกนแหล่ง "ฟุตบอลเต็มแมตช์ย้อนหลัง" ที่ขุดลงเว็บได้ (เน้นแมนยู)
 - **ผู้ชนะ: `aesport.tv`** — โครงสร้างครบและสตรีมเป็น m3u8 ตรง (พิสูจน์แล้วว่า hls.js เปล่าเล่นได้)
   - list: `/replay?page=N` = 100 แมตช์/หน้า · **37 หน้า = 3,638 แมตช์ ย้อนถึง 2025-03-08** · มี `/tournaments/{league}` (16 แมตช์ + 5 hit แมนยู) · `/match/{slug}-{id}`
