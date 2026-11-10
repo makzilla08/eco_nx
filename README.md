@@ -27,7 +27,7 @@
 ```bash
 npm run dev                    # dev server :8099 (static + proxy /api/* ไป live)
 npm run smoke                  # เทสต์ headless: title, hls.js, video, /api/movies
-SMOKE_URL=https://econx-three.vercel.app npm run smoke   # หรือ npm run smoke:live
+npm run smoke:live             # เทสต์ production (econx-three.vercel.app)
 npm run worker:deploy          # deploy hls-worker/ (ต้องมี CLOUDFLARE_API_TOKEN)
 git push origin master         # deploy เว็บผ่าน Vercel auto
 ```

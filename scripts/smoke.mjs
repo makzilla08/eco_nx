@@ -8,6 +8,7 @@
 //   SMOKE_STRICT=1 npm run smoke       # ให้ /api ที่ล้มเหลวทำให้ fail ด้วย
 //   SMOKE_SHOT=/tmp/econx.png npm run smoke              # เซฟภาพหลักฐาน
 import { chromium } from 'playwright';
+import { existsSync } from 'node:fs';
 
 const BASE = process.env.SMOKE_URL || 'http://127.0.0.1:8099';
 const CHROME = process.env.CHROME_PATH || '';
@@ -15,15 +16,38 @@ const STRICT = process.env.SMOKE_STRICT === '1';
 const SHOT = process.env.SMOKE_SHOT || '';
 const TIMEOUT = 30_000;
 
+// ใช้ bundled chromium ก่อน (cloud) — ถ้าไม่มีให้ไล่หา Chrome/Chromium ของระบบ (เครื่องนี้)
+const SYSTEM_CHROME = [
+  '/usr/bin/google-chrome',
+  '/usr/bin/google-chrome-stable',
+  '/usr/bin/chromium',
+  '/usr/bin/chromium-browser',
+].filter((p) => existsSync(p));
+
+async function launch() {
+  const tries = [CHROME, ...SYSTEM_CHROME, ''].filter((v, i, a) => v !== undefined && a.indexOf(v) === i);
+  let lastErr;
+  for (const exe of tries) {
+    try {
+      const b = await chromium.launch(exe ? { executablePath: exe } : {});
+      return { browser: b, exe: exe || 'bundled chromium' };
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr;
+}
+
 const fail = [];
 const warn = [];
 const ok = (m) => console.log(`  ✔ ${m}`);
 const bad = (m) => { fail.push(m); console.log(`  ✘ ${m}`); };
 const soft = (m) => { warn.push(m); console.log(`  ! ${m}`); };
 
-console.log(`▸ target: ${BASE}${CHROME ? ` (chrome: ${CHROME})` : ''}`);
+console.log(`▸ target: ${BASE}`);
 
-const browser = await chromium.launch(CHROME ? { executablePath: CHROME } : {});
+const { browser, exe } = await launch();
+console.log(`▸ browser: ${exe}`);
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 
 const pageErrors = [];

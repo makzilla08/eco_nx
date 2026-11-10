@@ -16,7 +16,7 @@
 - เปิด workspace: https://codespaces.new/makzilla08/eco_nx · หรือ `gh codespace create -R makzilla08/eco_nx`
 - `.devcontainer/setup.sh` (postCreate) = `npm install` + `playwright install --with-deps chromium` + `wrangler` global
 - `.devcontainer/start-dev.sh` (postStart) = สตาร์ท dev server :8099 แบบ idempotent · log `/tmp/econx-dev.log`
-- **เทสต์ใน cloud**: `npm run smoke` (ใช้ chromium ที่ setup ติดตั้งให้) · **ในเครื่องนี้**: `CHROME_PATH=/usr/bin/google-chrome npm run smoke`
+- **เทสต์**: `npm run smoke` — หา browser เองอัตโนมัติ (cloud = bundled chromium, เครื่องนี้ = `/usr/bin/google-chrome`) · override ด้วย `CHROME_PATH=...`
 - ทดสอบ production: `npm run smoke:live` · ภาพหลักฐาน: `SMOKE_SHOT=/tmp/econx.png npm run smoke`
 - deploy worker: `npm run worker:deploy` — ต้องมี `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` ใน Codespaces Secrets
 - deploy เว็บ: `git push origin master` → Vercel auto ~60s (Codespaces ใช้ GITHUB_TOKEN ในตัว ไม่ต้องตั้ง PAT)
