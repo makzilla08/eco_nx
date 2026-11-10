@@ -4,18 +4,24 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-echo "▸ npm install"
+echo "▸ npm install (playwright + wrangler อยู่ใน devDependencies)"
 npm install --no-audit --no-fund
 
-echo "▸ playwright + chromium (สำหรับเทสต์เว็บจริง)"
-npx playwright install --with-deps chromium
+echo "▸ system libs สำหรับ Chromium"
+if [ "$(id -u)" = "0" ]; then
+  npx playwright install-deps chromium || true
+elif command -v sudo >/dev/null 2>&1; then
+  sudo -n npx playwright install-deps chromium || echo "  ! install-deps ข้าม (มี sudo ไม่ได้) — chromium อาจขาด lib"
+else
+  echo "  ! ไม่มี sudo — ข้าม install-deps"
+fi
 
-echo "▸ wrangler (deploy hls-worker/)"
-npm install -g wrangler --no-audit --no-fund
+echo "▸ Chromium (ลง user cache ไม่ใช่ root)"
+npx playwright install chromium
 
 echo "▸ ตรวจสภาพแวดล้อม"
 node -v
 npx wrangler --version
-which gh >/dev/null && gh --version | head -1
+command -v gh >/dev/null && gh --version | head -1
 
 echo "✔ setup เสร็จ — dev server จะเริ่มที่ postStart (port 8099)"
