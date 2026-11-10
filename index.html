@@ -687,7 +687,7 @@ function parse14KClient(html,base){
   // C: หน้าหมวดหมู่ <article> … <a href="/movie/N/"> … <div class="title">
   if(out.length===0){
     for(const chunk of html.split('<article').slice(1)){
-      const href=(chunk.match(/href="(\/movie\/\d+\/[^"]*)"/)||[])[1];if(!href)continue;
+      const href=(chunk.match(/href="([^"]*\/movie\/\d+\/[^"]*)"/)||[])[1];if(!href)continue;
       push(href,(chunk.match(/<div class="title">([^<]*)</)||[])[1]||(chunk.match(/title="([^"]*)"/)||[])[1],(chunk.match(/<img[^>]+src="([^"]+)"/)||[])[1],(chunk.match(/<span class="badge">([^<]*)</)||[])[1]);
     }
   }
