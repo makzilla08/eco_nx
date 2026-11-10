@@ -11,3 +11,13 @@
 - แก้ → deploy live → **เทสต์บนเว็บจริงทุกครั้ง** ด้วย Playwright + `/usr/bin/google-chrome` (playwright MCP ใช้ไม่ได้)
 - ยืนยันด้วยค่าจริง: request 200, videoWidth/Height, t ที่เล่นได้
 - ห้ามฝัง API key ใน public repo (Exa key เคยฝัง — ต้องย้ายไป proxy/env)
+
+## Cloud dev (Codespaces / Cloud Shell) — ใช้ได้จริงแล้ว
+- เปิด workspace: https://codespaces.new/makzilla08/eco_nx · หรือ `gh codespace create -R makzilla08/eco_nx`
+- `.devcontainer/setup.sh` (postCreate) = `npm install` + `playwright install --with-deps chromium` + `wrangler` global
+- `.devcontainer/start-dev.sh` (postStart) = สตาร์ท dev server :8099 แบบ idempotent · log `/tmp/econx-dev.log`
+- **เทสต์ใน cloud**: `npm run smoke` (ใช้ chromium ที่ setup ติดตั้งให้) · **ในเครื่องนี้**: `CHROME_PATH=/usr/bin/google-chrome npm run smoke`
+- ทดสอบ production: `npm run smoke:live` · ภาพหลักฐาน: `SMOKE_SHOT=/tmp/econx.png npm run smoke`
+- deploy worker: `npm run worker:deploy` — ต้องมี `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` ใน Codespaces Secrets
+- deploy เว็บ: `git push origin master` → Vercel auto ~60s (Codespaces ใช้ GITHUB_TOKEN ในตัว ไม่ต้องตั้ง PAT)
+- ทำใน cloud ไม่ได้: Android WebView wrapper (`~/android-dev/EcoNx` ไม่ได้อยู่ใน repo นี้) + keystore/APK build

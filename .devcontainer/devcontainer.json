@@ -1,6 +1,9 @@
 {
-  "name": "Eco Nx Cloud Workspace",
-  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-20-bullseye",
+  "name": "Eco Nx — Cloud Dev",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
   "forwardPorts": [8099],
   "portsAttributes": {
     "8099": {
@@ -8,15 +11,24 @@
       "onAutoForward": "openPreview"
     }
   },
-  "postCreateCommand": "npm install",
+  "hostRequirements": {
+    "cpus": 2,
+    "memory": "4gb",
+    "storage": "16gb"
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "postStartCommand": "bash .devcontainer/start-dev.sh",
+  "remoteUser": "node",
   "customizations": {
     "vscode": {
       "settings": {
-        "terminal.integrated.defaultProfile.linux": "bash"
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "files.eol": "\n"
       },
       "extensions": [
         "esbenp.prettier-vscode",
-        "dbaeumer.vscode-eslint"
+        "dbaeumer.vscode-eslint",
+        "ms-playwright.playwright"
       ]
     }
   }

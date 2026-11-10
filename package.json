@@ -3,6 +3,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node serve.js"
+    "dev": "node serve.js",
+    "smoke": "node scripts/smoke.mjs",
+    "smoke:live": "SMOKE_URL=https://econx-three.vercel.app node scripts/smoke.mjs",
+    "worker:deploy": "wrangler deploy --config hls-worker/wrangler.toml",
+    "worker:tail": "wrangler tail nx-hls"
+  },
+  "devDependencies": {
+    "playwright": "^1.65.0"
   }
 }

@@ -9,15 +9,30 @@
 
 ## ⚡ Cloud Workspaces (เปิดทำงานบนคลาวด์ได้ทันที)
 
-คุณสามารถเปิดทำงานบน Cloud Workspace ผ่าน Browser ได้จากทุกเครื่องโดยไม่ต้องติดตั้ง Environment ในเครื่อง:
+เปิดทำงานผ่าน Browser จากเครื่องไหนก็ได้ — ไม่ต้องติดตั้งอะไรในเครื่อง:
 
 1. **GitHub Codespaces (แนะนำ):**
-   - คลิกที่ปุ่ม [Open in GitHub Codespaces](https://codespaces.new/makzilla08/eco_nx)
-   - ระบบจะสร้าง VM Cloud ให้ทันที พร้อมเปิด VS Code บนเว็บ ติดตั้ง Node.js dependencies และเปิดพอร์ต 8099 อัตโนมัติ
+   - คลิก [Open in GitHub Codespaces](https://codespaces.new/makzilla08/eco_nx)
+   - สร้าง VM + VS Code บนเว็บให้ทันที แล้วรันอัตโนมัติ:
+     - `npm install` + Playwright Chromium + Wrangler (postCreate)
+     - dev server ที่พอร์ต 8099 พร้อม preview เปิดให้เอง (postStart)
+   - เทสต์ได้ในตัว: `npm run smoke`
 
 2. **Google Cloud Shell:**
-   - คลิกที่ปุ่ม [Open in Cloud Shell](https://shell.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/makzilla08/eco_nx.git&cloudshell_workspace=eco_nx)
-   - ระบบจะ Clone repository เข้าสู่ Google Cloud Shell Editor พร้อมเปิดไฟล์ทำงานได้ทันที
+   - คลิก [Open in Cloud Shell](https://shell.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/makzilla08/eco_nx.git&cloudshell_workspace=eco_nx)
+   - Clone เข้า Cloud Shell Editor ทันที แล้วรัน `npm run dev`
+
+**คำสั่งที่ใช้บ่อยบน cloud**
+
+```bash
+npm run dev                    # dev server :8099 (static + proxy /api/* ไป live)
+npm run smoke                  # เทสต์ headless: title, hls.js, video, /api/movies
+SMOKE_URL=https://econx-three.vercel.app npm run smoke   # หรือ npm run smoke:live
+npm run worker:deploy          # deploy hls-worker/ (ต้องมี CLOUDFLARE_API_TOKEN)
+git push origin master         # deploy เว็บผ่าน Vercel auto
+```
+
+**สิ่งที่ cloud ทำไม่ได้** — Android WebView wrapper (`~/android-dev/EcoNx`) ไม่อยู่ใน repo นี้ ต้อง build APK บนเครื่องเอง
 
 ---
 
