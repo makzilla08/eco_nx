@@ -120,3 +120,15 @@
 - **ยืนยันผลจริง**: local smoke PASS (24 items, 233 ms, ไม่มี JS error) · production smoke PASS (1617–1692 ms) · ภาพ `/tmp/econx-smoke.png` · `wrangler deploy --dry-run` = 3.71 KiB · Vercel commit status = success
 - **push แล้ว**: `f4eb19e`, `bc5183d`, `8529484` (master)
 - **ยังไม่ทำ**: สร้าง Codespace ตัวจริง (กินโควตาฟรี + `gh` ยังไม่มี scope `codespace`) · APK build ยังต้องทำบนเครื่อง (`~/android-dev/EcoNx`)
+
+## 2026-11-10 (ต่อ) — 🚀 สร้าง GitHub Codespace จริง + แก้กับดักที่เจอตอนรัน
+- **Codespace**: `econx-cloud-v7pxjrg6rv6cxpv5` · 2 cores/8 GB · idle 30m · retention 7d · web `https://econx-cloud-v7pxjrg6rv6cxpv5.github.dev` · `basicLinux32gb`
+- **ต้องขอ scope ก่อน**: `gh auth refresh -h github.com -s codespace` (device flow — ต้องให้ user authorize เอง; เขียน script + `script -q -f` เพื่อ flush log แล้วอ่าน one-time code ออกมาได้)
+- **กับดักที่เจอ (แก้แล้วทั้งหมด)**:
+  1. **ไม่มี sshd** → `gh codespace ssh/logs/cp` ล้มทุกคำสั่ง ⇒ เพิ่ม feature `ghcr.io/devcontainers/features/sshd:1`
+  2. **rebuild ไม่พอ** — `gh codespace rebuild` ใช้ devcontainer จาก commit ที่ codespace ถืออยู่ (เก่า) ⇒ ต้อง **delete --force + create ใหม่** จาก master
+  3. **postStart ถูกฆ่า** — `nohup npm run dev &` เฉย ๆ ไม่รอด: log มี "dev server http://localhost:8099" แต่ `curl` = 000 (Codespaces kill process tree เมื่อ lifecycle command จบ) ⇒ ใช้ `nohup setsid npm run dev` + `disown` · **พิสูจน์โดย stop (API start กลับ) แล้ว curl=200 จาก ssh session ใหม่, pid 143/144 เกิดตอน boot**
+  4. **`gh codespace start` ไม่มี** — ต้อง `gh api -X POST /user/codespaces/<name>/start`
+  5. **lock เพี้ยนข้ามเครื่อง** — `npm install` ใน cloud (npm 10) เขียน `package-lock.json` ทับของ local (npm 11) ⇒ เปลี่ยนเป็น `npm ci` ใน setup.sh, ยืนยันแล้ว `git status` ว่าง
+- **ยืนยันปลายทาง**: ใน codespace `npm run smoke` → PASS (bundled chromium · 24 รายการ · 374 ms · ไม่มี JS error) · dev server :8099 = 200
+- **ค้าง/ควรทำต่อ**: codespace ซ้ำอีกตัว `orange-funicular-qgvw54974w439jqg` (สร้าง 07:19 วันเดียวกัน) ยังไม่ลบ — จะหยุดเองเมื่อ idle 30m, ถ้าไม่ใช้ให้ `gh codespace delete --force`

@@ -32,6 +32,14 @@ npm run worker:deploy          # deploy hls-worker/ (ต้องมี CLOUDFLA
 git push origin master         # deploy เว็บผ่าน Vercel auto
 ```
 
+**คุม Codespace จากเครื่องตัวเอง** (ไม่ต้องเปิดเบราว์เซอร์)
+
+```bash
+gh codespace ssh -c econx-cloud-v7pxjrg6rv6cxpv5 -- 'cd /workspaces/eco_nx && npm run smoke'
+gh api -X POST /user/codespaces/econx-cloud-v7pxjrg6rv6cxpv5/start   # ปลุก (ไม่มี gh codespace start)
+gh codespace stop -c econx-cloud-v7pxjrg6rv6cxpv5                    # พัก (หยุดนับ core-hour)
+```
+
 **สิ่งที่ cloud ทำไม่ได้** — Android WebView wrapper (`~/android-dev/EcoNx`) ไม่อยู่ใน repo นี้ ต้อง build APK บนเครื่องเอง
 
 ---
