@@ -110,3 +110,13 @@
 - วัดจริง (emulator t35, Android 15): app PSS ~63 MB; แนวตั้ง/แนวนอน/สกรีนช็อตยืนยันครบ
 - APK: `~/android-dev/EcoNx/dist/EcoNx-1.0.apk` (เซ็น v2 ด้วย `app/keystore/econx.jks`) · รายละเอียด/กับดัก → `~/android-dev/EcoNx/AGENTS.md`
 - กับดัก: อีมูเลเตอร์ตัวนี้ crash SIGSEGV ตอนสลับ surface (swiftshader/lavapipe) — อย่าตีความว่าแอปพัง
+
+## 2026-11-10 — ☁️ eco_nx เป็น cloud dev project ที่ทำงานได้จริง (Codespaces / Cloud Shell)
+- **ของเดิม (2026-11-09) ไม่พอ**: มีแค่ `.devcontainer` + ปุ่ม แต่ `postCreate` = `npm install` เปล่า (ไม่มี dependency เลย) → ไม่มี Playwright/Chromium ⇒ กฎ "เทสต์เว็บจริงทุกครั้ง" ใน `AGENTS.md` ทำบน cloud ไม่ได้ · และไม่มี wrangler ⇒ deploy `hls-worker/` ไม่ได้
+- **อัปเกรดแล้ว**: image node 22 + gh CLI · `postCreate` = `.devcontainer/setup.sh` (npm install → `playwright install-deps` ผ่าน sudo → `playwright install chromium` ลง user cache) · `postStart` = `.devcontainer/start-dev.sh` (สตาร์ท dev server :8099 แบบ idempotent, log `/tmp/econx-dev.log`, curl poll 10s) · `hostRequirements` 2 cpu / 4 GB
+- **`scripts/smoke.mjs`** (`npm run smoke`): ตรวจ HTTP 200, title `NX`, `window.Hls`, `<video>`, จำนวนแท็บ, `/api/movies` 200 + จำนวน items, ไม่มี pageerror · **หา browser เอง** — bundled chromium บน cloud, `/usr/bin/google-chrome` ในเครื่อง (override `CHROME_PATH`) · `SMOKE_STRICT=1` ให้ API ล่ม = fail · `SMOKE_SHOT=path` เซฟภาพ
+- **wrangler ^4 เป็น devDependency** (ไม่ใช่ global) → `npm run worker:deploy` / `worker:tail` ใน cloud ได้ ต้องตั้ง `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` ใน Codespaces Secrets
+- `.env.example` (API_TARGET, PORT, CF creds, SMOKE_*) · `.gitignore` เพิ่ม `!.env.example` (เดิม `.env*` กินไฟล์นี้ด้วย)
+- **ยืนยันผลจริง**: local smoke PASS (24 items, 233 ms, ไม่มี JS error) · production smoke PASS (1617–1692 ms) · ภาพ `/tmp/econx-smoke.png` · `wrangler deploy --dry-run` = 3.71 KiB · Vercel commit status = success
+- **push แล้ว**: `f4eb19e`, `bc5183d`, `8529484` (master)
+- **ยังไม่ทำ**: สร้าง Codespace ตัวจริง (กินโควตาฟรี + `gh` ยังไม่มี scope `codespace`) · APK build ยังต้องทำบนเครื่อง (`~/android-dev/EcoNx`)
