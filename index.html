@@ -824,7 +824,11 @@ function renderMRows(){
     mkRow('mtype',MOV_T,MV.type,v=>setM('type',v),null);
     mkLetters('mletters',MV.letter,v=>setM('letter',v));
   }else{
-    mkRow('m14cat',[['','ทั้งหมด']].concat(K14_CATS.map(c=>[c.href,c.title])),MV.k14cat,v=>setM('k14cat',v),null);
+    mkRow('m14cat',[['','ทั้งหมด']].concat(K14_CATS.map(c=>[c.href,c.title])),MV.k14cat,v=>setM('k14cat',v[0]),null);
+    document.querySelectorAll('#m14cat button').forEach((b,i)=>{
+      b.textContent=i===0?'ทั้งหมด':K14_CATS[i-1].title;
+      if((MV.k14cat||'')===(K14_CATS[i-1]?.href||''))b.classList.add('on');
+    });
     document.getElementById('m14q').value=MV.k14q;
   }
   mkRow('msort',[['new','ล่าสุดก่อน'],['old','ปีเก่าไปใหม่'],['az','ชื่อ A–Z'],['za','ชื่อ Z–A']],MV.sort,v=>setM('sort',v),null);
