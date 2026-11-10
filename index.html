@@ -659,6 +659,40 @@ function playEpIndex(i){
 }
 function stepEp(d){if(CUR.idx<0||!EP.length)return;playEpIndex(CUR.idx+d);}
 function toggleOrder(){ASC=!ASC;renderEps();renderWEps();}
+function absUrlClient(href,base){try{return new URL(href,base).href;}catch(e){return null;}}
+function decodeEntClient(s){return String(s||'').replace(/&#(\d+);/g,(_,n)=>String.fromCharCode(+n)).replace(/&#x([0-9a-fA-F]+);/g,(_,n)=>String.fromCharCode(parseInt(n,16))).replace(/&(amp|lt|gt|quot|apos|nbsp);/g,(_,n)=>({amp:'&',lt:'<',gt:'>',quot:'"',apos:"'",nbsp:' '}[n]));}
+function parse14KClient(html,base){
+  const out=[],seen=new Set();
+  const push=(href,title,img,badge)=>{
+    const url=absUrlClient(href,base);
+    if(!url||seen.has(url))return;
+    seen.add(url);
+    const idm=url.match(/\/movie\/(\d+)\//);
+    const cover=idm?'https://14kmovies.com/get-image.php?post_id='+idm[1]:(absUrlClient(img||'',base)||'');
+    out.push({url,title:decodeEntClient((title||'').trim()).replace(/\s*ดูหนังออนไลน์.*$/i,'').trim(),cover,badge:(badge||'').trim(),src:'14kmovies'});
+  };
+  // A: หน้า browse <article class="movie-card">
+  for(const chunk of html.split('<article class="movie-card">').slice(1)){
+    const href=(chunk.match(/<a href="([^"]+)"/)||[])[1];if(!href)continue;
+    push(href,(chunk.match(/<div class="movie-title">([^<]*)</)||[])[1]||(chunk.match(/<a[^>]+title="([^"]*)"/)||[])[1],(chunk.match(/<img[^>]+src="([^"]+)"/)||[])[1],(chunk.match(/<span class="quality-badge">([^<]*)</)||[])[1]);
+  }
+  // B: หน้าค้นหา class="kmv-movie-card"
+  if(out.length===0){
+    for(const chunk of html.split('class="kmv-movie-card"').slice(1)){
+      const href=(chunk.match(/href="([^"]+)"/)||[])[1];if(!href)continue;
+      const end=chunk.indexOf('</a>');const c=end>0?chunk.slice(0,end):chunk;
+      push(href,(c.match(/<div class="kmv-movie-title">([^<]*)</)||[])[1]||(c.match(/title="([^"]*)"/)||[])[1],(c.match(/<img[^>]+src="([^"]+)"/)||[])[1],(c.match(/<span class="kmv-badge">([^<]*)</)||[])[1]);
+    }
+  }
+  // C: หน้าหมวดหมู่ <article> … <a href="/movie/N/"> … <div class="title">
+  if(out.length===0){
+    for(const chunk of html.split('<article').slice(1)){
+      const href=(chunk.match(/href="(\/movie\/\d+\/[^"]*)"/)||[])[1];if(!href)continue;
+      push(href,(chunk.match(/<div class="title">([^<]*)</)||[])[1]||(chunk.match(/title="([^"]*)"/)||[])[1],(chunk.match(/<img[^>]+src="([^"]+)"/)||[])[1],(chunk.match(/<span class="badge">([^<]*)</)||[])[1]);
+    }
+  }
+  return out;
+}
 function sortItems(items,sort){
   items=[...items];
   const yr=s=>{const m=s.title.match(/\((\d{4})\)/);return m?+m[1]:0;};
@@ -802,12 +836,19 @@ async function movieBrowse(page){
   const g=document.getElementById('moviebrowse');
   if(pg===1)g.innerHTML='<p class="note">⏳ กำลังโหลด...</p>';
   try{
-    let j;
+    let items,total;
     if(MV.src==='k14'){
       let base='https://14kmovies.com/all-movie/';
       if(MV.k14cat)base='https://14kmovies.com'+MV.k14cat;
       else if(MV.k14q)base='https://14kmovies.com/search/?keys='+encodeURIComponent(MV.k14q);
-      j=await getJSON('/api/sites?custom='+encodeURIComponent(base)+'&parser=k14&page='+pg);
+      if(pg>1){
+        if(/[?&]keys=/.test(base))base+=(base.includes('?')?'&':'?')+'page='+pg;
+        else base=base.replace(/\/$/,'')+'/page/'+pg+'/';
+      }
+      const html=await (await fetch('/api/fetch?url='+encodeURIComponent(base))).text();
+      items=parse14KClient(html,base);
+      const tm=html.match(/ทั้งหมด\s*([\d,]+)\s*เรื่อง/);
+      total=tm?Math.ceil(tm[1].replace(/,/g,'')/PER):(items.length?Math.max(1,Math.ceil(items.length/PER)):1);
     }else{
       let url='/api/movies?limit=25&page='+(MV.letter?1:pg);
       if(MV.genre)url+='&genre='+MV.genre;
@@ -815,13 +856,13 @@ async function movieBrowse(page){
       if(MV.year)url+='&year='+MV.year;
       if(MV.type)url+='&type='+encodeURIComponent(MV.type);
       if(MV.letter)url+='&letter='+encodeURIComponent(MV.letter);
-      j=await getJSON(url);
+      const j=await getJSON(url);
+      items=j.items||[];total=Math.max(1,Math.ceil((j.total||items.length)/PER));
     }
-    let items=sortItems(j.items||[],MV.sort);
+    items=sortItems(items,MV.sort);
     g.innerHTML='';
-    MV.page=pg;
+    MV.page=pg;MV.total=total;
     if(MV.src==='037'&&MV.letter)items=items.slice((pg-1)*PER,pg*PER);
-    MV.total=MV.src==='037'?Math.max(1,Math.ceil((j.total||items.length)/PER)):(MV.src==='k14'?1:Math.max(1,j.totalPages||1));
     items.forEach(m=>{
       const d=document.createElement('div');d.className='bcard';
       d.innerHTML='<img loading="lazy" src="'+m.cover+'"><div class="t">'+m.title+'</div><div class="s">'+(m.badge||'')+'</div>';
