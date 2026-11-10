@@ -4,8 +4,12 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-echo "▸ npm install (playwright + wrangler อยู่ใน devDependencies)"
-npm install --no-audit --no-fund
+echo "▸ npm ci (ใช้ lock ตรง ๆ ไม่ให้ lock เพี้ยนข้ามเครื่อง)"
+if [ -f package-lock.json ]; then
+  npm ci --no-audit --no-fund
+else
+  npm install --no-audit --no-fund
+fi
 
 echo "▸ system libs สำหรับ Chromium"
 if [ "$(id -u)" = "0" ]; then
