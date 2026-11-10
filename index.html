@@ -90,12 +90,20 @@ h3{margin:18px 0 4px}footer{font-size:12px;margin:24px 0;text-align:center;color
 <div class="pager" id="pg-hit" style="display:none"></div>
 </div>
 <div id="panel-movie" style="display:none">
-<h3>🎬 หนัง (037hd)</h3>
+<h3 id="moviehead">🎬 หนัง</h3>
+<div class="frow"><span class="flabel">แหล่ง:</span><span id="msrc"></span></div>
+<div id="m_o37">
 <div class="frow"><span class="flabel">ประเภท:</span><span id="mgenre"></span></div>
 <div class="frow"><span class="flabel">ประเทศ:</span><span id="mcountry"></span></div>
 <div class="frow"><span class="flabel">ปี:</span><span id="myears"></span></div>
 <div class="frow"><span class="flabel">เสียง:</span><span id="mtype"></span></div>
 <div class="frow"><span class="flabel">ตัวอักษร:</span><span id="mletters"></span></div>
+</div>
+<div id="m_k14" style="display:none">
+<div class="frow"><span class="flabel">หมวดหมู่:</span><span id="m14cat"></span></div>
+<div class="frow"><span class="flabel">ค้นหา:</span><input id="m14q" placeholder="ค้นหาใน 14kmovies" style="flex:1;min-width:160px" onkeydown="if(event.key==='Enter')m14Search()"><button onclick="m14Search()">🔎 ค้น</button><button class="ghost" onclick="m14Search('')">ล้าง</button></div>
+</div>
+<div class="frow"><span class="flabel">เรียงตาม:</span><span id="msort"></span></div>
 <div class="bgrid" id="moviebrowse"></div>
 <div class="pager" id="pg-movie" style="display:none"></div>
 </div>
@@ -658,6 +666,15 @@ function playEpIndex(i){
 }
 function stepEp(d){if(CUR.idx<0||!EP.length)return;playEpIndex(CUR.idx+d);}
 function toggleOrder(){ASC=!ASC;renderEps();renderWEps();}
+function sortItems(items,sort){
+  items=[...items];
+  const yr=s=>{const m=s.title.match(/\((\d{4})\)/);return m?+m[1]:0;};
+  if(sort==='new')items.sort((a,b)=>yr(b)-yr(a));
+  else if(sort==='old')items.sort((a,b)=>yr(a)-yr(b));
+  else if(sort==='az')items.sort((a,b)=>a.title.localeCompare(b.title,'th'));
+  else if(sort==='za')items.sort((a,b)=>b.title.localeCompare(a.title,'th'));
+  return items;
+}
 function fmtT(s){s=+s;return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
 function skipIntro(){const v=document.getElementById('v');v.currentTime=Math.min(v.currentTime+(+document.getElementById('skip').value),(v.duration||1e9)-2);}
 function preset(q){document.getElementById('q').value=q;search();}
@@ -700,8 +717,19 @@ const HIT_CAT={'hit-latest':'https://hit-anime.com/','hit-sub':'https://hit-anim
 const MOV_G=['action','comedy','drama','horror','romance','documentary','war','thai'];
 const MOV_C=['ฝรั่ง','สากล','เอเชีย','ไทย'];
 const MOV_T=['พากย์ไทย','ซับไทย'];
+const K14_CATS=[
+  {href:'/category/51/',title:'NETFLIX'},
+  {href:'/category/22/',title:'หนังจีน'},
+  {href:'/category/25/',title:'หนังฝรั่ง'},
+  {href:'/category/26/',title:'การ์ตูน'},
+  {href:'/category/31/',title:'หนังเอเชีย'},
+  {href:'/category/32/',title:'หนัง 18+'},
+  {href:'/category/40/',title:'หนังเกาหลี'},
+  {href:'/category/41/',title:'หนังไทย'},
+  {href:'/category/52/',title:'หนังชนโรง'}
+];
 let HH={cat:'hit-latest',genre:'',letter:'',page:1};
-let MV={genre:'',country:'',year:'',type:'',letter:'',page:1};
+let MV={src:'037',genre:'',country:'',year:'',type:'',letter:'',k14cat:'',k14q:'',sort:'new',page:1};
 let SR={src:'o37',genre:'',country:'',year:'',type:'',letter:'',sdcat:'latest',sdyear:'',sdletter:'',page:1};
 const PER=25;
 function drawPager(id,cur,total,fn){
@@ -758,29 +786,49 @@ async function hitBrowse(page){
 }
 function setM(k,v){MV[k]=v;MV.page=1;renderMRows();movieBrowse();}
 function renderMRows(){
-  mkRow('mgenre',MOV_G,MV.genre,v=>setM('genre',v),null);
-  mkRow('mcountry',MOV_C,MV.country,v=>setM('country',v),null);
-  mkRow('myears',YEARS,MV.year,v=>setM('year',v),null);
-  mkRow('mtype',MOV_T,MV.type,v=>setM('type',v),null);
-  mkLetters('mletters',MV.letter,v=>setM('letter',v));
+  mkRow('msrc',[['037','037hd'],['k14','14kmovies']],MV.src,v=>setMSrc(v),null);
+  document.querySelectorAll('#msrc button').forEach((b,i)=>{b.textContent=i===0?'037hd':'14kmovies';b.onclick=()=>setMSrc(['037','k14'][i]);});
+  document.getElementById('m_o37').style.display=MV.src==='037'?'block':'none';
+  document.getElementById('m_k14').style.display=MV.src==='k14'?'block':'none';
+  if(MV.src==='037'){
+    mkRow('mgenre',MOV_G,MV.genre,v=>setM('genre',v),null);
+    mkRow('mcountry',MOV_C,MV.country,v=>setM('country',v),null);
+    mkRow('myears',YEARS,MV.year,v=>setM('year',v),null);
+    mkRow('mtype',MOV_T,MV.type,v=>setM('type',v),null);
+    mkLetters('mletters',MV.letter,v=>setM('letter',v));
+  }else{
+    mkRow('m14cat',[['','ทั้งหมด']].concat(K14_CATS.map(c=>[c.href,c.title])),MV.k14cat,v=>setM('k14cat',v),null);
+    document.getElementById('m14q').value=MV.k14q;
+  }
+  mkRow('msort',[['new','ล่าสุดก่อน'],['old','ปีเก่าไปใหม่'],['az','ชื่อ A–Z'],['za','ชื่อ Z–A']],MV.sort,v=>setM('sort',v),null);
 }
+function setMSrc(v){MV.src=v;MV.page=1;MV.k14cat='';MV.k14q='';MV.sort='new';renderMRows();movieBrowse();}
+function m14Search(q){const el=document.getElementById('m14q');MV.k14q=(typeof q==='string')?q.trim():(el?el.value.trim():'');if(el)el.value=MV.k14q;MV.page=1;movieBrowse();}
 async function movieBrowse(page){
   const pg=page||1;
   const g=document.getElementById('moviebrowse');
   if(pg===1)g.innerHTML='<p class="note">⏳ กำลังโหลด...</p>';
   try{
-    let url='/api/movies?limit=25&page='+(MV.letter?1:pg);
-    if(MV.genre)url+='&genre='+MV.genre;
-    if(MV.country)url+='&country='+encodeURIComponent(MV.country);
-    if(MV.year)url+='&year='+MV.year;
-    if(MV.type)url+='&type='+encodeURIComponent(MV.type);
-    if(MV.letter)url+='&letter='+encodeURIComponent(MV.letter);
-    const j=await getJSON(url);
+    let j;
+    if(MV.src==='k14'){
+      let base='https://14kmovies.com/all-movie/';
+      if(MV.k14cat)base='https://14kmovies.com'+MV.k14cat;
+      else if(MV.k14q)base='https://14kmovies.com/search/?keys='+encodeURIComponent(MV.k14q);
+      j=await getJSON('/api/sites?custom='+encodeURIComponent(base)+'&parser=k14&page='+pg);
+    }else{
+      let url='/api/movies?limit=25&page='+(MV.letter?1:pg);
+      if(MV.genre)url+='&genre='+MV.genre;
+      if(MV.country)url+='&country='+encodeURIComponent(MV.country);
+      if(MV.year)url+='&year='+MV.year;
+      if(MV.type)url+='&type='+encodeURIComponent(MV.type);
+      if(MV.letter)url+='&letter='+encodeURIComponent(MV.letter);
+      j=await getJSON(url);
+    }
+    let items=sortItems(j.items||[],MV.sort);
     g.innerHTML='';
-    let items=j.items||[];
     MV.page=pg;
-    MV.total=Math.max(1,Math.ceil((j.total||items.length)/PER));
-    if(MV.letter)items=items.slice((pg-1)*PER,pg*PER);
+    if(MV.src==='037'&&MV.letter)items=items.slice((pg-1)*PER,pg*PER);
+    MV.total=MV.src==='037'?Math.max(1,Math.ceil((j.total||items.length)/PER)):(MV.src==='k14'?1:Math.max(1,j.totalPages||1));
     items.forEach(m=>{
       const d=document.createElement('div');d.className='bcard';
       d.innerHTML='<img loading="lazy" src="'+m.cover+'"><div class="t">'+m.title+'</div><div class="s">'+(m.badge||'')+'</div>';
