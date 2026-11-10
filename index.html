@@ -68,7 +68,6 @@ h3{margin:18px 0 4px}footer{font-size:12px;margin:24px 0;text-align:center;color
 <button data-p="anime" class="on" onclick="switchPanel('anime',this)">🎌 อนิเมะ</button>
 <button data-p="movie" onclick="switchPanel('movie',this)">🎬 หนัง</button>
 <button data-p="series" onclick="switchPanel('series',this)">📺 ซีรี่ส์</button>
-<button data-p="k14" onclick="switchPanel('k14',this)">🎬 14K</button>
 <button data-p="football" onclick="switchPanel('football',this)">⚽ ดูบอลย้อนหลัง</button>
 <button data-p="football-live" onclick="switchPanel('football-live',this)">📡 ดูบอลสด</button>
 <button data-p="cont" onclick="switchPanel('cont',this)" id="tabcont">⏱ ดูต่อ</button>
@@ -125,12 +124,6 @@ h3{margin:18px 0 4px}footer{font-size:12px;margin:24px 0;text-align:center;color
 </div>
 <div class="bgrid" id="seriesbrowse"></div>
 <div class="pager" id="pg-series" style="display:none"></div>
-</div>
-<div id="panel-k14" style="display:none">
-<h3>🎬 14Kmovies — หนังพากย์ไทย</h3>
-<div class="frow"><span class="flabel">ค้นหา:</span><input id="k14q" placeholder="ชื่อหนัง เช่น spider, per aspera" style="flex:1;min-width:160px" onkeydown="if(event.key==='Enter')k14Search()"><button onclick="k14Search()">🔎 ค้น</button><button class="ghost" onclick="k14Search('')">ล้าง</button></div>
-<div class="bgrid" id="k14browse"></div>
-<div class="pager" id="pg-k14" style="display:none"></div>
 </div>
 <div id="panel-football" style="display:none">
 <h3>⚽ ดูบอลย้อนหลัง — เต็มแมตช์</h3>
@@ -857,48 +850,7 @@ function renderSRows(){
     mkLetters('sdletters',SR.sdletter,v=>setS('sdletter',v));
   }
 }
-/* ===== 🎬 14Kmovies (14kmovies.com) — หนังพากย์ไทย m3u8 ฝังในหน้า ===== */
-const K14={page:1,total:1,keys:''};
-async function k14Browse(page){
-  const pg=page||1,g=document.getElementById('k14browse');
-  if(pg===1)g.innerHTML='<p class="note">⏳ กำลังโหลด...</p>';
-  try{
-    const base=K14.keys?'https://14kmovies.com/search/?keys='+encodeURIComponent(K14.keys):'https://14kmovies.com/all-movie/';
-    const j=await getJSON('/api/sites?custom='+encodeURIComponent(base)+'&parser=k14&page='+pg);
-    const items=j.items||[];g.innerHTML='';K14.page=pg;
-    K14.total=(K14.keys||!items.length)?1:(j.total?Math.ceil(j.total/items.length):(j.totalPages||1));
-    items.forEach(m=>{
-      const d=document.createElement('div');d.className='bcard';
-      const im=document.createElement('img');im.loading='lazy';im.src=m.cover||'';
-      const t=document.createElement('div');t.className='t';t.textContent=m.title||'';
-      const s=document.createElement('div');s.className='s';s.textContent=m.badge||'';
-      d.appendChild(im);d.appendChild(t);d.appendChild(s);
-      d.onclick=()=>k14Play(m.url,m.title);
-      g.appendChild(d);
-    });
-    drawPager('pg-k14',pg,K14.total,p=>{k14Browse(p);g.scrollIntoView();});
-    if(!g.children.length)g.innerHTML='<p class="note">ไม่เจอ ลองคำอื่น</p>';
-  }catch(e){g.innerHTML='<p class="note">โหลดไม่ได้: '+e.message.slice(0,80)+'</p>';}
-}
-function k14Search(q){
-  const el=document.getElementById('k14q');
-  K14.keys=(typeof q==='string')?q.trim():(el?el.value.trim():'');
-  if(el)el.value=K14.keys;
-  k14Browse(1);
-}
-async function k14Play(url,title){
-  setLoading('⏳ กำลังโหลด '+(title||'')+' …');
-  try{
-    const j=await resolve14K(url);
-    play(j.src,j.ref||'',()=>alert('สตรีมนี้ใช้ไม่ได้ (เซิร์ฟเวอร์ต้นทางตาย) ลองเรื่องอื่น'),j.proxy);
-    LAST_DIRECT=j.proxy?proxied(j.src,j.ref||''):j.src;
-    const db=document.getElementById('directbox');if(db)db.style.display='flex';
-    const du=document.getElementById('directurl');if(du)du.textContent=j.src.slice(0,70)+'…';
-    setNow(title||j.label||'14K',-1);
-    const v=document.getElementById('v');if(v)v.scrollIntoView({block:'center'});
-  }catch(e){alert('เล่นไม่ได้: '+(e.message==='no-14k'?'หน้านี้ไม่มีลิงก์วิดีโอตรง (ตัวเล่นภายนอกปิดไว้)':e.message==='nanaplayer'?'เซิร์ฟเวอร์ต้นทางเรื่องนี้ (nanaplayer) ปิดแล้ว ลองเรื่องอื่น':e.message));}
-  finally{setLoading('');}
-}
+/* ===== 🎬 14kmovies helper — ขุด m3u8 จากหนังในหนัง ===== */
 function k14M3u8(html){
   const m=html.match(/file:\s*"([^"]+)"/);
   if(m)return m[1];
@@ -1081,10 +1033,10 @@ async function resolveHitVideo(pageUrl){
   throw new Error('no-hit');
 }
 const PANEL_LOADED={anime:true};
-const SRC_JUMP={'anime-hit':['anime','hit-latest'],'037HD':['series','o37'],'14K':['k14'],'AnimePahe':['anime','hit-sub']};
+const SRC_JUMP={'anime-hit':['anime','hit-latest'],'037HD':['series','o37'],'14K':['movie','k14'],'AnimePahe':['anime','hit-sub']};
 function jumpSource(n){
   const j=SRC_JUMP[n];
-  if(j){switchPanel(j[0],document.querySelector('#bigtabs button[data-p='+j[0]+']'));
+  if(j){if(j[0]==='movie'&&j[1]==='k14'){MV.src='k14';MV.page=1;MV.k14cat='';MV.k14q='';MV.sort='new';renderMRows();movieBrowse();}switchPanel(j[0],document.querySelector('#bigtabs button[data-p='+j[0]+']'));
     if(j[0]==='anime')setH('cat',j[1]);else if(j.length>1)setS('src',j[1]);
     document.getElementById('panel-'+j[0]).scrollIntoView();return;}
   const q=document.getElementById('q').value.trim()||'อนิเมะ';
@@ -1097,14 +1049,12 @@ function switchPanel(p,btn){
   document.getElementById('panel-movie').style.display=p==='movie'?'block':'none';
   document.getElementById('panel-series').style.display=p==='series'?'block':'none';
   document.getElementById('panel-football').style.display=p==='football'?'block':'none';
-  document.getElementById('panel-k14').style.display=p==='k14'?'block':'none';
   document.getElementById('panel-football-live').style.display=p==='football-live'?'block':'none';
   document.getElementById('panel-cont').style.display=p==='cont'?'block':'none';
   if(p==='cont'){renderCont();return;}
   if(!PANEL_LOADED[p]){
     PANEL_LOADED[p]=true;
     if(p==='movie')movieBrowse();
-    else if(p==='k14')k14Browse();
     else if(p==='series')seriesBrowse();
     else if(p==='football'){fbfInit().then(()=>fbfBrowse('manchester-united',1));}
     else if(p==='football-live')fblBrowse();
