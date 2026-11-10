@@ -8,7 +8,8 @@ if curl -sf -o /dev/null http://127.0.0.1:8099/; then
   exit 0
 fi
 
-nohup npm run dev > /tmp/econx-dev.log 2>&1 &
+nohup setsid npm run dev > /tmp/econx-dev.log 2>&1 < /dev/null &
+disown 2>/dev/null || true
 
 for _ in $(seq 1 20); do
   curl -sf -o /dev/null http://127.0.0.1:8099/ && break
