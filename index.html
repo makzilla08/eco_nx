@@ -576,7 +576,7 @@ async function resolveUrl(pageUrl){
     const mu=ehtml.match(/"(\/sources\/[^"]+?master\.m3u8\?[^"]+)"/);
     if(mu){const host=new URL(pageUrl).origin;return{src:host+mu[1],ref:pref,proxy:true};}
   }
-  if(/\/player\/view\.php/.test(pageUrl)&&/qplay\.xyz|dunseries\.xyz/.test(pageUrl)){
+  if(/\/view\.php/.test(pageUrl)&&/qplay\.xyz|dunseries\.xyz/.test(pageUrl)){
     try{
       const h=await pGet(pageUrl,FORCE_REF||'https://seriesdet.com/');
       const m=h.match(/submitPlayer\('([A-Za-z0-9+/=]+)'/);
