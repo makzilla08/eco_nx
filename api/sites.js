@@ -394,16 +394,18 @@ async function searchYoutube(q) {
 }
 
 async function searchAll(req, res, q) {
-  const [o37, hit, myseries, youtube, k14] = await Promise.all([
+  const [o37, hit, myseries, youtube, k14, sdet] = await Promise.all([
     searchO37(q),
     searchWP('https://hit-anime.com/', parseHit, q),
     searchWP('https://myseriesz.com/series', parseMySeries, q),
     searchYoutube(q),
-    search14K(q)
+    search14K(q),
+    searchWP('https://seriesdet.com/', parseSeriesdet, q)
   ]);
   return res.status(200).json({
     groups: [
       { site: '037hd', items: o37 },
+      { site: 'seriesdet', items: sdet },
       { site: '14kmovies', items: k14 },
       { site: 'hit-anime', items: hit },
       { site: 'myseries', items: myseries },
@@ -421,11 +423,11 @@ export default async function handler(req, res) {
   }
   if (custom) {
     // custom URL browse — only our allowlisted hosts
-    const allow = { 'hit-anime.com': parseHit, '037hddd.com': parseO37, 'hd.movie285.com': parseM285, '14kmovies.com': parse14K, 'myseriesz.com': parseMySeries, 'anime-th.com': parseAnimeTh, 'anime-dee.com': parseAnimeDee };
+    const allow = { 'hit-anime.com': parseHit, '037hddd.com': parseO37, 'hd.movie285.com': parseM285, '14kmovies.com': parse14K, 'myseriesz.com': parseMySeries, 'seriesdet.com': parseSeriesdet, 'anime-th.com': parseAnimeTh, 'anime-dee.com': parseAnimeDee };
     let u;
     try { u = new URL(custom); } catch { return res.status(400).json({ error: 'bad url' }); }
     const host = u.hostname.replace(/^www\./, '');
-    const fn = allow[host] && (parser ? { hit: parseHit, o37: parseO37, m285: parseM285, k14: parse14K, myseries: parseMySeries, 'anime-th': parseAnimeTh, 'anime-dee': parseAnimeDee }[parser] : allow[host]);
+    const fn = allow[host] && (parser ? { hit: parseHit, o37: parseO37, m285: parseM285, k14: parse14K, myseries: parseMySeries, seriesdet: parseSeriesdet, 'anime-th': parseAnimeTh, 'anime-dee': parseAnimeDee }[parser] : allow[host]);
     if (!fn) return res.status(403).json({ error: 'host not allowed' });
     try {
       const pg = Math.max(1, +page || 1);

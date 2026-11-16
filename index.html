@@ -33,6 +33,9 @@ button.ghost{background:#222}
 video{width:100%;background:#000;margin-top:12px;border-radius:12px}
 .eps{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0;max-height:300px;overflow:auto}
 .eps button{padding:8px 12px;min-width:64px;background:#222}.eps button.cur{background:#0a7}
+.eps button.dup{background:#2b2410;color:#f0c674;border:1px solid #7a5c1d}
+.eps button.dup::after{content:' ⚠';font-size:11px;opacity:.9}
+#dupwarn{background:#2b2410;border:1px solid #7a5c1d;color:#f0c674}
 .nowbar{display:flex;align-items:center;gap:8px;background:#10251a;border:1px solid #0a7;border-radius:10px;padding:8px 12px;margin-top:8px}
 .nowbar b{flex:1}
 .frow{margin:8px 0;font-size:13px}.flabel{color:#8a94a6;margin-right:6px}
@@ -122,6 +125,9 @@ h3{margin:18px 0 4px}footer{font-size:12px;margin:24px 0;text-align:center;color
 <div class="frow"><span class="flabel">ปี:</span><span id="sdyears"></span></div>
 <div class="frow"><span class="flabel">ตัวอักษร:</span><span id="sdletters"></span></div>
 </div>
+<div id="s_sdet">
+<div class="frow"><span class="flabel">หมวด:</span><span id="sdetcats"></span></div>
+</div>
 <div class="bgrid" id="seriesbrowse"></div>
 <div class="pager" id="pg-series" style="display:none"></div>
 </div>
@@ -196,6 +202,7 @@ h3{margin:18px 0 4px}footer{font-size:12px;margin:24px 0;text-align:center;color
 <div class="nowbar" id="nowbar" style="display:none">
 <button id="prevbtn" onclick="stepEp(-1)">◀ ตอนก่อน</button><b id="nowtxt">-</b><button id="nextbtn" onclick="stepEp(1)">ตอนถัดไป ▶</button>
 </div>
+<div id="dupwarn" class="note" style="display:none;margin-top:8px;padding:8px 12px;border-radius:10px"></div>
 <div class="row">
 <button onclick="skipIntro()">⏩ ข้ามเพลงเปิด (<span id="skipval">2:00</span>)</button>
 <input id="skip" type="range" min="0" max="600" step="5" value="120" style="flex:1" oninput="document.getElementById('skipval').textContent=fmtT(this.value)">
@@ -472,7 +479,51 @@ async function fetchO37Stream(seriesId,epDbId){
   STREAM_CACHE.set(key,{t:Date.now(),v});
   return v;
 }
-async function resolveO37Episode(seriesId,epDbId,epNum,title,idx){
+/* ===== ตรวจ "ต้นทางให้ลิงก์ซ้ำ" (037hd ใส่ไฟล์ EP.1 ซ้ำหลายตอน) ===== */
+const SIGOWNER=new Map();
+function sigOf(u){return String(u||'').replace(/[?&]hls_token=[^&]*/g,'').replace(/[?&]ctx=[^&]*/g,'');}
+let DUPTITLE='',DUPEP=0;
+function showDup(ofEp,epNum,title){
+  DUPTITLE=title||EPTITLE||'';DUPEP=epNum;
+  const el=document.getElementById('dupwarn');if(!el)return;
+  el.style.display='block';
+  el.innerHTML='⚠ ต้นทาง 037hd ให้ไฟล์เดียวกับ <b>EP.'+ofEp+'</b> — ยังไม่มีไฟล์จริงของ EP.'+epNum+
+    ' ในระบบต้นทาง <button class="ghost" onclick="findDupYt()">🔎 หา EP.'+epNum+' บน YouTube</button>';
+}
+function clearDup(){const el=document.getElementById('dupwarn');if(el){el.style.display='none';el.innerHTML='';}}
+function findDupYt(){
+  if(!DUPTITLE)return;
+  document.getElementById('q').value=DUPTITLE+' EP.'+DUPEP+' พากย์ไทย';
+  search();
+  document.getElementById('results').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function noteDup(title,epNum,dupOfEp,src){
+  const sig=sigOf(src),owner=SIGOWNER.get(sig);
+  if(dupOfEp)showDup(dupOfEp,epNum,title);
+  else if(owner&&owner!==epNum)showDup(owner,epNum,title);
+  else{SIGOWNER.set(sig,epNum);clearDup();}
+}
+async function o37DupMap(seriesId,eps){
+  try{
+    const all=JSON.parse(await pGet('https://037hddd.com/api/watch-links/series/'+seriesId));
+    if(!Array.isArray(all))return{};
+    const num={};eps.forEach(e=>{num[e.id]=+e.ep_number;});
+    const byTok={};
+    all.forEach(x=>{
+      if(!x||!x.episode_id||!x.embed_url)return;
+      const n=num[x.episode_id];if(!n)return;
+      if(!byTok[x.embed_url])byTok[x.embed_url]=new Set();
+      byTok[x.embed_url].add(n);
+    });
+    const dup={};
+    Object.values(byTok).forEach(s=>{
+      const a=[...s].sort((x,y)=>x-y);
+      a.slice(1).forEach(n=>{if(!dup[n])dup[n]=a[0];});
+    });
+    return dup;
+  }catch(e){return{};}
+}
+async function resolveO37Episode(seriesId,epDbId,epNum,title,idx,dupOfEp){
   const label=title+' — EP.'+epNum,keep=(typeof idx==='number'&&idx>=0)?idx:-1;
   setLoading('⏳ กำลังโหลด '+label+' …');
   try{
@@ -481,6 +532,7 @@ async function resolveO37Episode(seriesId,epDbId,epNum,title,idx){
     document.getElementById('directbox').style.display='flex';
     document.getElementById('directurl').textContent=j.src.slice(0,70)+'…';
     setNow(label,keep);
+    noteDup(title,epNum,dupOfEp,j.src);
     if(keep>=0)[EP[keep-1],EP[keep+1]].forEach(n=>{if(n&&n.dbId)fetchO37Stream(seriesId,n.dbId).catch(()=>{});});
   }catch(e){alert(e.message);setNow(label,keep);}
   finally{setLoading('');}
@@ -508,6 +560,16 @@ async function resolveUrl(pageUrl){
     const ehtml=await pGet(pageUrl,pref);
     const mu=ehtml.match(/"(\/sources\/[^"]+?master\.m3u8\?[^"]+)"/);
     if(mu){const host=new URL(pageUrl).origin;return{src:host+mu[1],ref:pref,proxy:true};}
+  }
+  if(/dunseries\.xyz\/player\/view\.php/.test(pageUrl)){
+    try{
+      const h=await pGet(pageUrl,FORCE_REF||'https://seriesdet.com/');
+      const m=h.match(/submitPlayer\('([A-Za-z0-9+/=]+)'/);
+      if(m){
+        let u='';try{u=atob(m[1]);}catch(e){}
+        if(/^https?:/.test(u)){const gd=drivePreview(u);return{embed:gd||u};}
+      }
+    }catch(e){}
   }
   if(/qplay\.xyz\/play\/view\.php/.test(pageUrl)){
     const dd=await scanDrive(await pGet(pageUrl));if(dd)return dd;
@@ -755,9 +817,18 @@ const K14_CATS=[
   {href:'/category/41/',title:'หนังไทย'},
   {href:'/category/52/',title:'หนังชนโรง'}
 ];
+const SDET_CATS=[
+  {href:'/',title:'ทั้งหมด'},
+  {href:'/category/chinese-series/',title:'จีน'},
+  {href:'/category/chinese-series/chinese-series-พากย์ไทย/',title:'จีน พากย์ไทย'},
+  {href:'/category/chinese-series/chinese-series-ซับไทย/',title:'จีน ซับไทย'},
+  {href:'/category/ซีรี่ย์ฝรั่ง/',title:'ฝรั่ง'},
+  {href:'/category/ซีรี่ย์เกาหลี/',title:'เกาหลี'},
+  {href:'/category/ซีรี่ย์ไทย/',title:'ไทย'}
+];
 let HH={cat:'hit-latest',genre:'',letter:'',page:1};
 let MV={src:'037',genre:'',country:'',year:'',type:'',letter:'',k14cat:'',k14q:'',sort:'new',page:1};
-let SR={src:'o37',genre:'',country:'',year:'',type:'',letter:'',sdcat:'latest',sdyear:'',sdletter:'',page:1};
+let SR={src:'o37',genre:'',country:'',year:'',type:'',letter:'',sdcat:'latest',sdyear:'',sdletter:'',sdetcat:'/',page:1};
 const PER=25;
 function drawPager(id,cur,total,fn){
   const el=document.getElementById(id);
@@ -878,16 +949,20 @@ async function movieBrowse(page){
 }
 function setS(k,v){SR[k]=v;SR.page=1;renderSRows();seriesBrowse();}
 function renderSRows(){
-  mkRow('ssrc',[['o37','037hd'],['myseries','myseries']].map(x=>x[0]),SR.src,()=>{},null);
-  document.querySelectorAll('#ssrc button').forEach((b,i)=>{b.textContent=[['037hd'],['MySeries']][i][0];b.onclick=()=>setS('src',['o37','myseries'][i]);});
+  mkRow('ssrc',[['o37','037hd'],['myseries','myseries'],['sdet','seriesdet']].map(x=>x[0]),SR.src,()=>{},null);
+  document.querySelectorAll('#ssrc button').forEach((b,i)=>{b.textContent=['037hd','MySeries','seriesdet'][i];b.onclick=()=>setS('src',['o37','myseries','sdet'][i]);});
   document.getElementById('s_o37').style.display=SR.src==='o37'?'block':'none';
   document.getElementById('s_sd').style.display=SR.src==='myseries'?'block':'none';
+  document.getElementById('s_sdet').style.display=SR.src==='sdet'?'block':'none';
   if(SR.src==='o37'){
     mkRow('sgenre',MOV_G,SR.genre,v=>setS('genre',v),null);
     mkRow('scountry',MOV_C,SR.country,v=>setS('country',v),null);
     mkRow('syears',YEARS,SR.year,v=>setS('year',v),null);
     mkRow('stype',MOV_T,SR.type,v=>setS('type',v),null);
     mkLetters('sletters',SR.letter,v=>setS('letter',v));
+  }else if(SR.src==='sdet'){
+    mkRow('sdetcats',SDET_CATS.map(c=>c.href),SR.sdetcat||'/',v=>setS('sdetcat',v),null);
+    document.querySelectorAll('#sdetcats button').forEach((b,i)=>{b.textContent=SDET_CATS[i].title;});
   }else{
     mkRow('sdcats',['latest','thai-dubbed','sub-thai','korean-series','chinese-series'],SR.sdcat,v=>setS('sdcat',v),null);
     document.querySelectorAll('#sdcats button').forEach((b,i)=>{b.textContent=[['ทั้งหมด'],['🔊 พากย์ไทย'],['💬 ซับไทย'],['🇰🇷 เกาหลี'],['🐉 จีน']][i][0];});
@@ -962,6 +1037,9 @@ async function seriesBrowse(page){
         let base='https://myseriesz.com/'+cat;
         url='/api/sites?custom='+encodeURIComponent(base)+'&parser=myseries'+'&page='+pg;
       }
+    }else if(SR.src==='sdet'){
+      const base='https://seriesdet.com'+(SR.sdetcat||'/');
+      url='/api/sites?custom='+encodeURIComponent(base)+'&parser=seriesdet&page='+pg;
     }
     const j=await getJSON(url);
     g.innerHTML='';
@@ -996,11 +1074,13 @@ async function expandSeries(url,title){
     if(pendUrl){document.getElementById('u').value=pendUrl;setNow(pendLab||title,-1);resolve();return true;}
     return false;
   };
-  const render=items=>{
+  const render=(items,note)=>{
     EP=items;
-    panel.innerHTML='<h3>'+title+' — '+items.length+' ตอน</h3><div class="eps"></div>';
+    panel.innerHTML='<h3>'+title+' — '+items.length+' ตอน</h3><div class="eps"></div>'+(note?'<p class="note">'+note+'</p>':'');
     const box=panel.querySelector('.eps');
-    items.forEach((e,i)=>{const b=document.createElement('button');b.textContent='EP.'+e.ep;b.onclick=()=>playEpIndex(i);box.appendChild(b);});
+    items.forEach((e,i)=>{const b=document.createElement('button');b.textContent='EP.'+e.ep;
+      if(e.dup){b.classList.add('dup');b.title='ต้นทางให้ลิงก์ซ้ำกับ EP.'+e.dup;}
+      b.onclick=()=>playEpIndex(i);box.appendChild(b);});
     resume(items);
   };
   try{
@@ -1009,7 +1089,13 @@ async function expandSeries(url,title){
     if(m37){
       const eps=JSON.parse(await pGet('https://037hddd.com/api/series/'+m37[1]+'/episodes'));
       if(!eps.length)throw new Error('empty');
-      render(eps.map((e,i)=>({ep:e.ep_number,dbId:e.id,play:()=>resolveO37Episode(m37[1],e.id,e.ep_number,title,i)})));
+      const dupOf=await o37DupMap(m37[1],eps);
+      const dupN=Object.keys(dupOf).length;
+      render(
+        eps.map((e,i)=>({ep:e.ep_number,dbId:e.id,dup:dupOf[e.ep_number]||0,
+          play:()=>resolveO37Episode(m37[1],e.id,e.ep_number,title,i,dupOf[e.ep_number]||0)})),
+        dupN?('⚠ ต้นทาง 037hd ให้ไฟล์ซ้ำ '+dupN+' ตอน — ตอนที่ขึ้น ⚠ จะเล่นไฟล์ของ EP.ต้นทาง (ยังไม่มีไฟล์จริงในระบบต้นทาง)'):''
+      );
       return;
     }
     // myseries: episode list on series page with links to /series/.../ep-N
@@ -1033,6 +1119,22 @@ async function expandSeries(url,title){
       if(!eps.length)throw new Error('empty');
       eps.sort((a,b)=>a.ep-b.ep);
       render(eps);
+      return;
+    }
+    // seriesdet: ปุ่มตอนอยู่ใน data-* (wmep-ep-btn) → ตัวเล่น dunseries → Google Drive
+    if(/^https?:\/\/(www\.)?seriesdet\.com\//.test(url)){
+      const sdhtml=await pGet(url),sdcps=[];
+      for(const m of sdhtml.matchAll(/<button[^>]*class="wmep-ep-btn"[^>]*>/g)){
+        const tag=m[0];
+        const n=+(tag.match(/data-ep-num="(\d+)"/)||[0,0])[1];
+        const th=(tag.match(/data-url-th="([^"]*)"/)||[0,''])[1];
+        const en=(tag.match(/data-url-en="([^"]*)"/)||[0,''])[1];
+        const u=(th||en||'').trim();
+        if(n&&u&&!sdcps.some(e=>e.ep===n))sdcps.push({ep:n,url:u,ref:url});
+      }
+      if(!sdcps.length)throw new Error('empty');
+      sdcps.sort((a,b)=>a.ep-b.ep);
+      render(sdcps);
       return;
     }
     // fallback เดิม: ขูด href ที่มี episode/ep/ตอน (แก้ relative URL ให้เป็น absolute)
