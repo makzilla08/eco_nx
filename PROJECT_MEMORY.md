@@ -1,5 +1,19 @@
 # eco_nx — Project Memory
 
+## 2026-11-16 — 🩹 ซีรี่ส์: 037hd ลิงก์ตอนซ้ำ + เอา seriesdet กลับเข้าแหล่งซีรี่ส์ (`c7c0156`)
+- **บั๊กที่ผู้ใช้แจ้ง**: "ล่าหยก กด EP ไหนก็เล่น EP.1" → ตรวจ API ต้นทาง `037hddd.com/api/watch-links/series/24/ep/{id}` พบว่า **13/40 ตอน (1,2,3,4,7,9,10,21-25,29,38) คืน `embed_url` เดียวกัน `6ArNU9fi6x`** → playlist 47374 = ไฟล์ EP.1 (dur 2820s) จริง · EP.5 = `lbJkwN28ne` → 47378 (2728s), EP.6 = 47379 (2635s) เล่นได้ปกติ · **ต้นทางผิด ไม่ใช่บั๊กโค้ดเรา** (เว็บ 037hd เองก็เล่นซ้ำ)
+- **แก้ฝั่งเรา**:
+  - `o37DupMap()` — ดึง `/api/watch-links/series/{id}` ครั้งเดียว จัดกลุ่มตาม `embed_url` แล้วมาร์กตอนที่ซ้ำ (`dup` = EP.ต้นทาง) → ปุ่มขึ้น `⚠` (CSS `.eps button.dup::after`) + note ใต้ลิสต์
+  - `noteDup()` — ตอนกดเล่น ตรวจ signature m3u8 (ตัด `hls_token`/`ctx`) เทียบ `SIGOWNER` ถ้าซ้ำจะขึ้นแบนเนอร์ `#dupwarn` "ต้นทางให้ไฟล์เดียวกับ EP.x" + ปุ่ม `findDupYt()` ค้น YouTube ในแอป
+- **seriesdet กลับมา** (เดิมถูกถอดที่ `78caa0b` เพราะ scrape ไม่ได้):
+  - `api/sites.js` — เพิ่ม `seriesdet.com` ใน allow map + parser `seriesdet` + กลุ่มใน `searchAll` (หมายเหตุ "ค้นใน … seriesdet" จึงจริงแล้ว)
+  - หน้าเว็บมีปุ่มตอนใน `data-*` ของ plugin `wp-multi-ep-player` → `expandSeries` อ่าน `wmep-ep-btn` (`data-ep-num`, `data-url-th`, `data-url-en`; th ว่างให้ใช้ en)
+  - ตัวเล่น `mx.dunseries.xyz/player/view.php` **และ** `nn.qplay.xyz/play/view.php` ต้องส่ง Referer `https://seriesdet.com/` ไม่งั้น 403 "Access Denied" → `resolveUrl` แกะ base64 ใน `submitPlayer('…')` → `drive.google.com/file/d/<id>/preview` · **กับดัก: path ของ qplay คือ `/play/view.php` ไม่ใช่ `/player/`** (commit `a8c171a`)
+  - UI: แหล่งที่ 3 "seriesdet" + แถวหมวด `SDET_CATS` (ทั้งหมด/จีน/จีนพากย์ไทย/จีนซับไทย/ฝรั่ง/เกาหลี/ไทย) + `/page/N/` (หน้าละ 12)
+  - แบนเนอร์ `#dupwarn` มีปุ่ม "📺 ดู EP.n จาก seriesdet" → `findDupSdet()` ค้น seriesdet ตามชื่อเรื่อง, `PEND_EP=n` แล้ว `expandSeries()` → `resume()` กระโดดเล่นตอนเดียวกันอัตโนมัติ (มี `Pursuit of Jade EP1-EP36` = 40 ตอน พากย์ไทย)
+- **ทดสอบบน live** (Playwright + `/usr/bin/google-chrome`): seriesdet 12 การ์ด/หน้า, เปิดเรื่อง → 12-40 ตอน, EP.1 → iframe `drive.google.com/file/d/1KXC3l…/preview` · ล่าหยก ปุ่ม ⚠ 13 ปุ่ม, EP.2 → แบนเนอร์เตือน + dur 2820 (ไฟล์ EP.1), EP.5 → dur 2728 ไม่เตือน · 037hd/myseries ยังโหลด 25 การ์ดปกติ · `npm run smoke:live` = PASS
+- **ข้อจำกัดที่เจอ (ฝั่ง Google)**: ไฟล์ Drive ของ seriesdet บางตอนขึ้น "This video file is unplayable due to a temporary failure" (ทดสอบ EP.1/3/5 ล่ม แต่ EP.8 เล่นได้) → เป็นเรื่อง processing/limit ของ Google ไม่ใช่โค้ด · ทางถอยคือปุ่ม YouTube ในแบนเนอร์
+
 ## 2026-11-09 — ⚽ ปรับปรุงแท็บ "ดูบอลย้อนหลัง" (เสถียร 100% ทั้งตรงและผ่าน Worker Relay)
 - **ปัญหาเดิม**:
   - `soccerfull.net` เดิมตายถาวร (เปลี่ยนเป็น hgcloud iframe)
